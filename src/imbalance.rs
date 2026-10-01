@@ -81,8 +81,12 @@ fn read_window(
 ) -> Result<f32, hound::Error> {
     let mut sum_sq = 0f64;
     let mut counted = 0usize;
-    for s in reader.samples::<i16>().take(take) {
+    let channels = reader.spec().channels as usize;
+    for (i, s) in reader.samples::<i16>().take(take * channels).enumerate() {
         let v = s? as f64;
+        if i % channels != 0 {
+            continue;
+        }
         sum_sq += v * v;
         counted += 1;
     }
@@ -97,7 +101,7 @@ fn read_window(
 /// проход, а не в ошибку. Пустой файл даёт пустой список.
 pub fn window_levels_dbfs(path: &Path, windows: usize) -> Result<Vec<f32>, hound::Error> {
     let mut reader = hound::WavReader::open(path)?;
-    let total = reader.len() as usize;
+    let total = reader.duration() as usize;
     if total == 0 {
         return Ok(Vec::new());
     }
@@ -206,6 +210,22 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stereo_system_audio_does_not_mask_a_silent_microphone() {
+        let path = std::env::temp_dir().join(format!("meetrec-quiet-stereo-{}.wav", std::process::id()));
+        let spec = hound::WavSpec { channels: 2, sample_rate: 16_000, bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for _ in 0..16_000 {
+            writer.write_sample(0i16).unwrap();
+            writer.write_sample(20_000i16).unwrap();
+        }
+        writer.finalize().unwrap();
+        let levels = window_levels_dbfs(&path, 2).unwrap();
+        assert_eq!(levels, [FLOOR_DBFS, FLOOR_DBFS]);
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn rms_синуса_половинной_амплитуды_около_минус_девяти_дб() {

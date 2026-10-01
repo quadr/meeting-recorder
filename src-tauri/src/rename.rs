@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 /// длительностью встречи; без него после переименования длительность
 /// вернулась бы к расчёту по размеру дорожки, а у вычищенной автоочисткой
 /// записи пропала бы совсем.
-const SUFFIXES: [&str; 4] = [".mic.wav", ".system.wav", ".transcript", ".meta.json"];
+const SUFFIXES: [&str; 6] = [".wav", ".mic.wav", ".system.wav", ".transcript", ".meta.json", ".callabo.json"];
 
 /// Переименовывает запись целиком. Возвращает новую основу имени.
 ///
@@ -87,6 +87,16 @@ pub fn rename_recording(dir: &Path, base: &str, new_tail: &str) -> Result<String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn callabo_receipt_moves_with_audio() {
+        let dir = ScratchDir::new("callabo");
+        файл(&dir, "2026-07-30_13-03_chrome.wav");
+        файл(&dir, "2026-07-30_13-03_chrome.callabo.json");
+        rename_recording(&dir, "2026-07-30_13-03_chrome", "meeting").unwrap();
+        assert!(dir.join("2026-07-30_13-03_meeting.callabo.json").exists());
+        assert!(!dir.join("2026-07-30_13-03_chrome.callabo.json").exists());
+    }
     use std::path::PathBuf;
 
     /// Уникальный временный каталог без внешних зависимостей. Удаляется в Drop,
@@ -139,6 +149,17 @@ mod tests {
         assert!(dir.join("2026-07-30_13-03_артем.mic.wav").exists());
         assert!(dir.join("2026-07-30_13-03_артем.system.wav").exists());
         assert!(!dir.join("2026-07-30_13-03_chrome.mic.wav").exists());
+    }
+
+    #[test]
+    fn single_multichannel_wav_moves_with_metadata() {
+        let dir = ScratchDir::new("multichannel");
+        файл(&dir, "2026-07-30_13-03_chrome.wav");
+        файл(&dir, "2026-07-30_13-03_chrome.meta.json");
+        rename_recording(&dir, "2026-07-30_13-03_chrome", "meeting").unwrap();
+        assert!(dir.join("2026-07-30_13-03_meeting.wav").exists());
+        assert!(dir.join("2026-07-30_13-03_meeting.meta.json").exists());
+        assert!(!dir.join("2026-07-30_13-03_chrome.wav").exists());
     }
 
     /// Транскрипт кладётся рядом с записью внешним скриптом расшифровки. Оставить

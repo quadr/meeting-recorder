@@ -37,6 +37,26 @@
       [hidden] {
         display: none !important;
       }
+      .callabo-dialog {
+        width: min(560px, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+        color: var(--fg);
+        padding: 20px;
+      }
+      .callabo-dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+      .callabo-dialog h2 { margin: 0 0 8px; }
+      .callabo-dialog label { display: block; margin: 12px 0 5px; font-weight: 500; }
+      .callabo-dialog input, .callabo-dialog select { width: 100%; }
+      .callabo-dialog select[multiple] { min-height: 90px; padding: 6px; }
+      .callabo-dialog fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+      .callabo-dialog .dialog-note { color: var(--muted); font-size: 12px; white-space: pre-line; overflow-wrap: anywhere; }
+      .callabo-dialog .dialog-error { color: var(--error); white-space: pre-line; margin: 12px 0; }
+      .callabo-dialog .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; position: sticky; bottom: -20px; background: var(--card); padding: 12px 0; }
+      .callabo-dialog details { margin-top: 14px; }
 
       /* ── Каркас окна ─────────────────────────────────────────────────────
          Три зоны сверху вниз: шапка, закреплённая зона (баннеры и кнопка
@@ -1912,6 +1932,27 @@
           </div>
 
           <div class="grp">
+            <h2>Callabo</h2>
+            <label for="callabo-token" data-i18n="callabo.token">Personal Access Token</label>
+            <div class="row"><input type="password" id="callabo-token" autocomplete="off" spellcheck="false" placeholder="pat_…" /></div>
+            <div class="row">
+              <button class="sec" id="callabo-connect" data-i18n="callabo.connect">Save token / connect</button>
+              <button class="sec" id="callabo-token-help" data-i18n="callabo.tokenHelp">Create a token</button>
+            </div>
+            <div class="row">
+              <span class="hint" id="callabo-token-status" role="status"></span>
+              <button class="sec" id="callabo-forget" disabled data-i18n="callabo.forget">Remove saved token</button>
+            </div>
+            <label for="callabo-workspace" data-i18n="callabo.defaultWorkspace">Default workspace</label>
+            <div class="row"><span class="field">
+              <select id="callabo-workspace" disabled><option value="" data-i18n="callabo.choose">Select a workspace</option></select>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg>
+            </span></div>
+            <div class="hint" data-i18n="callabo.hint">The PAT is stored in Windows Credential Manager. Upload details are chosen in the recording’s upload dialog.</div>
+            <div class="saved" id="callabo-saved" hidden role="status">✓ <span data-i18n="settings.saved">Saved</span></div>
+          </div>
+
+          <div class="grp">
             <h2 data-i18n="retention.label">Delete audio</h2>
             <div class="row">
               <span class="field">
@@ -2087,8 +2128,53 @@
       <span class="tt-note" id="tt-note"></span>
     </div>
 
+    <dialog id="callabo-upload-dialog" class="callabo-dialog" aria-labelledby="callabo-upload-heading">
+      <form id="callabo-upload-form">
+        <h2 id="callabo-upload-heading" data-i18n="callabo.upload">Upload to Callabo</h2>
+        <div class="dialog-note" id="callabo-upload-recording"></div>
+        <label for="callabo-upload-workspace" data-i18n="callabo.workspace">Workspace</label>
+        <select id="callabo-upload-workspace" required></select>
+        <fieldset id="callabo-upload-options" disabled>
+          <label for="callabo-upload-title" data-i18n="callabo.title">Title</label>
+          <input id="callabo-upload-title" type="text" maxlength="500" data-i18n-attr="placeholder:callabo.autoTitle" placeholder="Leave empty for an automatic title" />
+          <label for="callabo-upload-scope" data-i18n="callabo.scope">Visibility</label>
+          <select id="callabo-upload-scope">
+            <option value="workspace" data-i18n="callabo.scopeWorkspace">Workspace</option>
+            <option value="team" data-i18n="callabo.scopeTeam">Selected teams</option>
+            <option value="private" data-i18n="callabo.scopePrivate">Private</option>
+          </select>
+          <label for="callabo-upload-teams" data-i18n="callabo.teams">Teams</label>
+          <select id="callabo-upload-teams" multiple size="3" aria-describedby="callabo-multi-hint"></select>
+          <div class="dialog-note" id="callabo-multi-hint" data-i18n="callabo.multiHint">Ctrl-click to select or clear multiple choices. Last successful selections are kept separately for each workspace.</div>
+          <label for="callabo-upload-language" data-i18n="callabo.language">Transcription language</label>
+          <select id="callabo-upload-language"></select>
+          <label for="callabo-upload-labels" data-i18n="callabo.labels">Labels</label>
+          <select id="callabo-upload-labels" multiple size="3"></select>
+          <label for="callabo-upload-template" data-i18n="callabo.template">Template</label>
+          <select id="callabo-upload-template" disabled><option data-i18n="callabo.templateDefault">Callabo / team defaults</option></select>
+          <div class="dialog-note" data-i18n="callabo.templateHint">Template override is not documented by the upload API. Selected teams’ configured defaults are shown below.</div>
+          <div class="dialog-note" id="callabo-upload-template-info"></div>
+          <details>
+            <summary data-i18n="callabo.access">Additional access</summary>
+            <label for="callabo-upload-access-teams" data-i18n="callabo.accessTeams">Accessible teams</label>
+            <select id="callabo-upload-access-teams" multiple size="3"></select>
+            <label for="callabo-upload-access-users" data-i18n="callabo.accessUsers">Accessible Callabo user IDs</label>
+            <input id="callabo-upload-access-users" type="text" inputmode="numeric" placeholder="12, 34" />
+          </details>
+          <button class="sec" type="button" id="callabo-upload-reset" data-i18n="callabo.reset">Clear team / label / access selections</button>
+        </fieldset>
+        <div id="callabo-upload-error" class="dialog-error" role="status"></div>
+        <div class="dialog-note" data-i18n="callabo.uploadNotice">Audio will be sent to Callabo for processing. Check the workspace and visibility before uploading.</div>
+        <div class="dialog-actions">
+          <button class="sec" type="button" id="callabo-upload-cancel" data-i18n="confirm.cancel">Cancel</button>
+          <button class="sec" type="submit" id="callabo-upload-submit" disabled data-i18n="callabo.upload">Upload to Callabo</button>
+        </div>
+      </form>
+    </dialog>
+
     <script src="theme.js"></script>
     <script src="i18n.js"></script>
+    <script src="callabo.js"></script>
     <script src="main.js"></script>
   </body>
 </html>

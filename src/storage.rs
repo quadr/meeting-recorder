@@ -152,10 +152,14 @@ pub struct WavSink {
 
 impl WavSink {
     pub fn create(dir: &Path, filename: &str) -> Result<Self, hound::Error> {
+        Self::create_channels(dir, filename, 1)
+    }
+
+    pub fn create_channels(dir: &Path, filename: &str, channels: u16) -> Result<Self, hound::Error> {
         std::fs::create_dir_all(dir)?;
         let path = dir.join(filename);
         let spec = hound::WavSpec {
-            channels: 1,
+            channels,
             sample_rate: SAMPLE_RATE,
             bits_per_sample: 16,
             sample_format: hound::SampleFormat::Int,

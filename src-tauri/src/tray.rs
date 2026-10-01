@@ -22,7 +22,7 @@ use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, Wry};
+use tauri::{AppHandle, Wry};
 
 /// Текущее состояние для иконки. Глобаль, а не поле в `State`, потому что читать
 /// её надо из потока-мигалки, а писать — из аудио-потока; заводить ради двух
@@ -318,11 +318,7 @@ pub fn build(app: &AppHandle, tx: Sender<Ctl>) -> tauri::Result<()> {
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.unminimize();
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
+                crate::show_main_window(app);
             }
         })
         .build(app)?;

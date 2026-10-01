@@ -13,6 +13,15 @@ const $ = (id) => document.getElementById(id);
 // (см. отрисовать_список), и читать состояние обратно из узла значило бы
 // зависеть от того, пересоздали его только что или нет.
 const транскрипции = new Map();
+const callaboUploads = new Map(); // key -> creating | uploading | completing
+const callaboUI = window.createCallaboUI({
+  $, invoke, t: (key) => i18n.t(key), language: () => i18n.lang,
+  keyOf: ключ_транскрипции,
+  showError: (title, error) => показать_ошибку(title, error),
+  showSettings: () => перейти_на("settings"), saved: (id) => показать_сохранено(id),
+  uploads: callaboUploads, refresh: () => обновить_список(),
+});
+function uploadToCallabo(recording) { return callaboUI.open(recording); }
 
 // key -> текст ошибки расшифровки. Живёт по тем же причинам, что и карта выше,
 // и нужна затем, чтобы ошибка показывалась у той записи, с которой она
@@ -654,6 +663,7 @@ function собрать_меню(запись, узел_имени) {
   const стадия = транскрипции.get(ключ);
   const идёт = стадия_идёт(стадия) || стадия?.startsWith("queued:");
   const пара = запись.mic && запись.system;
+  const callaboBusy = callaboUploads.has(ключ);
 
   // Первым пунктом — то, зачем меню обычно открывают у расшифрованной записи.
   if (запись.transcript) {
@@ -676,7 +686,7 @@ function собрать_меню(запись, узел_имени) {
   // `transcribe-error` пришёл бы с ключом, которого нет ни у одной строки, а
   // «Отменить расшифровку» стало бы недостижимо. Симметрично тому, как уже
   // сделано для «Расшифровать встречу» чуть ниже.
-  if (!идёт) {
+  if (!идёт && !callaboBusy && !запись.recording_now) {
     меню.append(
       пункт_меню(ЗНАЧКИ.карандаш, i18n.t("menu.rename"), () =>
         начать_переименование(запись, узел_имени),
@@ -693,6 +703,9 @@ function собрать_меню(запись, узел_имени) {
   }
 
   const низ = [];
+  if ((запись.mic || запись.system) && !запись.recording_now && !идёт && !callaboBusy) {
+    меню.append(пункт_меню(ЗНАЧКИ.документ, i18n.t("callabo.upload"), () => uploadToCallabo(запись)));
+  }
   if (идёт) {
     низ.push(
       пункт_меню(ЗНАЧКИ.крестик, i18n.t("menu.cancel"), () =>
@@ -733,7 +746,7 @@ function собрать_меню(запись, узел_имени) {
   // это только чтобы не предлагать действие, которое сервер и так отклонит.
   // Последним пунктом и за своим разделителем — как и остальное, что
   // отменяет уже сделанное.
-  const занята = идёт || запись.recording_now;
+  const занята = идёт || запись.recording_now || callaboBusy;
   if (!занята) {
     const разделитель_удаления = document.createElement("div");
     разделитель_удаления.className = "sep";
@@ -890,7 +903,9 @@ function строка_записи(запись) {
 
   const мета = document.createElement("div");
   мета.className = "sub";
-  if (стадия && стадия !== "done") {
+  if (callaboUploads.has(ключ)) {
+    мета.textContent = i18n.t(`callabo.${callaboUploads.get(ключ)}`);
+  } else if (стадия && стадия !== "done") {
     const детали = детали_расшифровки.get(ключ);
     const подпись =
       детали && стадия_идёт(стадия)
@@ -921,10 +936,16 @@ function строка_записи(запись) {
     мета.append(хвост);
   }
   колонка.append(название, мета);
+  if (запись.callabo_workspaces?.length) {
+    const uploaded = document.createElement("div");
+    uploaded.className = "sub";
+    uploaded.textContent = i18n.t("callabo.history", { workspaces: запись.callabo_workspaces.map((w) => w.name).join(", ") });
+    колонка.append(uploaded);
+  }
 
   // Полоска неопределённая: сервер не сообщает процент, и врать процентом
   // нельзя. У записи в очереди её нет — ждать нечего показывать.
-  if (стадия_идёт(стадия)) {
+  if (стадия_идёт(стадия) || callaboUploads.has(ключ)) {
     const полоска = document.createElement("div");
     полоска.className = "prog";
     полоска.append(document.createElement("i"));
@@ -1048,6 +1069,8 @@ function подпись_строки(з, ключ) {
     з.transcript,
     з.quiet_mic_db,
     з.recording_now,
+    з.callabo_workspaces,
+    callaboUploads.get(ключ) ?? null,
     транскрипции.get(ключ) ?? null,
     ошибки_расшифровки.get(ключ) ?? null,
     ошибки_переименования.get(ключ) ?? null,
@@ -1678,6 +1701,7 @@ async function обновить_устройства() {
     if (!смена_отложена) сохранённый_микрофон = конфиг.mic_device_name ?? null;
     $("stt-url").value = конфиг.stt_gateway_url ?? "";
     $("stt-key").value = конфиг.stt_api_key ?? "";
+    callaboUI.setDefaultWorkspace(конфиг.callabo_workspace ?? null);
     $("lang").value = конфиг.language ?? "system";
     $("theme").value = конфиг.theme ?? "system";
     $("retention").value =
@@ -2277,6 +2301,13 @@ async function старт() {
   отрисовать_поддержку();
 
   await listen("state", (e) => применить_состояние(e.payload));
+  await listen("callabo-settings-warning", (e) => показать_ошибку(i18n.t("callabo.error"), e.payload));
+  await listen("callabo-progress", (e) => {
+    const key = ключ_транскрипции(e.payload.folder, e.payload.base);
+    if (e.payload.stage === "done") callaboUploads.delete(key);
+    else callaboUploads.set(key, e.payload.stage);
+    обновить_список();
+  });
   // Само по себе событие ничего не показывает: строку взвода ставит
   // применить_состояние в момент перехода в «armed». Здесь только запоминаем,
   // кого услышали, — состояние придёт отдельным событием следом.
@@ -2399,6 +2430,9 @@ async function старт() {
   // которая молча оставит список пустым, если то условие однажды поменяется.
   обновить_список();
   обновить_устройства();
+  const callaboConfig = await invoke("get_config");
+  callaboUI.initialize(callaboConfig.callabo_workspace ?? null)
+    .catch((e) => показать_ошибку(i18n.t("callabo.error"), e));
 }
 
 старт();

@@ -5,6 +5,7 @@
   "description": "Tauri-оболочка записи встреч: трей, тост, хоткей, список записей",
   "scripts": {
     "tauri": "tauri",
+    "test:callabo-ui": "node --test scripts/test-callabo-ui.cjs",
     "check-tap-lazy-bind": "scripts/check-tap-lazy-bind.sh"
   },
   "devDependencies": {

@@ -69,7 +69,7 @@ pub fn due_for_cleanup(
 /// раньше (например, ручным запуском чистки при уменьшенном сроке), и второй
 /// проход — не повод жаловаться.
 pub fn delete_audio(dir: &Path, base: &str) -> Result<(), String> {
-    let existing: Vec<PathBuf> = [".mic.wav", ".system.wav"]
+    let existing: Vec<PathBuf> = [".wav", ".mic.wav", ".system.wav"]
         .iter()
         .map(|s| dir.join(format!("{base}{s}")))
         .filter(|p| p.exists())

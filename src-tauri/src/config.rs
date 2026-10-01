@@ -55,6 +55,10 @@ pub struct Config {
     /// Разбор значения в действующий режим живёт в `transcribe::effective_mode`,
     /// а не здесь — этот файл ничего не знает про протоколы серверов.
     pub transcribe_server: Option<String>,
+    /// Only the non-secret workspace selection is persisted. The PAT is not.
+    pub callabo_workspace: Option<String>,
+    /// Last successful upload choices, isolated by workspace slug. No title/PAT.
+    pub callabo_upload_settings: std::collections::BTreeMap<String, crate::callabo::UploadPreferences>,
 }
 
 impl Config {
@@ -103,6 +107,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn callabo_workspace_roundtrips_without_a_token_field() {
+        let config = Config { callabo_workspace: Some("workspace-slug".into()), ..Config::default() };
+        let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(Config::from_str(&json), config);
+        assert!(!json.contains("callabo_token"));
+        assert_eq!(Config::from_str("{}").callabo_workspace, None);
+    }
+
+    #[test]
+    fn callabo_upload_preferences_are_isolated_per_workspace_and_exclude_title_scope() {
+        let mut config = Config::default();
+        let a = crate::callabo::UploadPreferences { team_ids: vec![11], transcribe_language: "ko".into(), ..Default::default() };
+        let b = crate::callabo::UploadPreferences { team_ids: vec![22], transcribe_language: "en".into(), ..Default::default() };
+        config.callabo_upload_settings.insert("a".into(), a.clone());
+        config.callabo_upload_settings.insert("b".into(), b.clone());
+        let json = serde_json::to_string(&config).unwrap();
+        let restored = Config::from_str(&json);
+        assert_eq!(restored.callabo_upload_settings["a"], a);
+        assert_eq!(restored.callabo_upload_settings["b"], b);
+        assert!(!json.contains("title") && !json.contains("scope") && !json.contains("callabo_token"));
+        assert!(Config::from_str("{}").callabo_upload_settings.is_empty());
+    }
+
+    #[test]
     fn пустой_конфиг_это_системный_дефолт() {
         assert_eq!(Config::default().choice(), DeviceChoice::Default);
     }
@@ -120,6 +148,8 @@ mod tests {
             transcribe_mode: None,
             update_skipped_version: None,
             transcribe_server: None,
+            callabo_workspace: None,
+            callabo_upload_settings: Default::default(),
         };
         assert_eq!(c.choice(), DeviceChoice::Id("{0.0.1.00000000}.{guid}".into()));
     }
@@ -139,6 +169,8 @@ mod tests {
             transcribe_mode: None,
             update_skipped_version: None,
             transcribe_server: None,
+            callabo_workspace: None,
+            callabo_upload_settings: Default::default(),
         };
         assert_eq!(c.choice(), DeviceChoice::Default);
     }
@@ -169,6 +201,8 @@ mod tests {
             transcribe_mode: None,
             update_skipped_version: None,
             transcribe_server: None,
+            callabo_workspace: None,
+            callabo_upload_settings: Default::default(),
         };
         let json = serde_json::to_string(&c).unwrap();
         assert_eq!(Config::from_str(&json), c);
@@ -194,6 +228,8 @@ mod tests {
             transcribe_mode: None,
             update_skipped_version: None,
             transcribe_server: None,
+            callabo_workspace: None,
+            callabo_upload_settings: Default::default(),
         };
         cfg.mic_device_id = Some("{new-id}".to_string());
         cfg.mic_device_name = Some("Новый микрофон".to_string());

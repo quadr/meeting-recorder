@@ -21,6 +21,7 @@ meeting-recorder = { path = ".." }
 tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
 # Персистентный лог GUI: раньше ошибки захвата уходили в eprintln! stderr,
 # у которого нет консоли, — то есть в никуда. LogDir пишет в файл на диске,
 # Stdout сохраняет то же поведение для запуска из терминала при отладке.
@@ -34,6 +35,7 @@ hound = "3.5"
 # двухчасовая запись это ~230 МБ на дорожку (16 кГц, моно, i16). Без этой
 # фичи `Part::file` и `impl From<File> for Body` у reqwest не существуют.
 reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+uuid = { version = "1", features = ["v4"] }
 # `io-util` — ради `AsyncWriteExt` в `local.rs`: скачивание модели пишет
 # приходящие по сети чанки в файл, не блокируя рантайм синхронным
 # `std::fs::write` на каждый чанк.
@@ -56,6 +58,9 @@ trash = { version = "5.2.6", default-features = false, features = ["coinit_apart
 # ядро (`../Cargo.toml`), чтобы `DateTime<Local>` здесь был тем же типом, а
 # не двумя одноимёнными по недоразумению.
 chrono = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
 
 # Прямой доступ к NSWindow всплывашки. Нужен ровно для двух вещей, которых ни
 # Tauri, ни tao не отдают: поведение окна на рабочих столах (жить на всех и

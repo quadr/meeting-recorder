@@ -28,7 +28,7 @@ MeetRec notices when a call starts, offers to record it, and writes two separate
 
 - **Notices calls.** Zoom, Teams, Slack and Discord are recognised by their process. A small panel appears over the call window and asks whether to record.
 - **Keeps the first seconds.** Audio runs through a ring buffer, so recording starts a few seconds before you answer the question. Opening lines are not lost.
-- **Two separate tracks.** Your microphone and the system audio go into separate WAV files. You and the other side never overlap.
+- **Two separate channels.** Your microphone and the system audio go into one WAV file, with each source on its own channel.
 - **Stays out of the way.** An icon in the menu bar, a global shortcut, monthly folders, renaming, per-device microphone choice.
 
 ## What makes it different
@@ -68,20 +68,38 @@ On Windows no separate permission is required.
 
 ```
 ~/Recordings/2026-09/
-  2026-09-02_14-30_zoom.mic.wav       your microphone
-  2026-09-02_14-30_zoom.system.wav    everyone else
+  2026-09-02_14-30_zoom.wav           channel 1: microphone; channel 2: system audio
   2026-09-02_14-30_zoom.transcript/   text, if you asked for it
 ```
 
 On Windows the same tree lives in `%USERPROFILE%\Recordings\`.
 
+New recordings use one two-channel WAV (16 kHz, 16-bit PCM): 512 kbps total,
+about 230 MB per hour. The sources remain separate channels, not a mixed track.
+If system capture is unavailable, the WAV contains only the microphone (256 kbps).
+Older separate `.mic.wav` and `.system.wav` recordings remain supported.
+
 ## Transcription and privacy
 
 Recording is entirely local. Transcription is not, and this is worth being precise about.
 
-MeetRec does not ship with a transcription server. You put the address and the access key of your own gateway into settings, and the audio files are uploaded there, one track at a time, over HTTPS. If you leave those fields empty, nothing is ever sent anywhere and the app is a plain local recorder.
+MeetRec does not ship with a transcription server. You put the address and the access key of your own gateway into settings, and the audio files are uploaded there, one track at a time, over HTTPS. Without a configured gateway or an explicitly requested Callabo upload, recordings stay local.
 
 If you don't have a gateway, [selfhost-ai-lab](https://github.com/mmaximov97/selfhost-ai-lab) is one you can run on your own hardware. It speaks the API MeetRec expects — `POST /v1/audio/transcriptions/async` to submit a track, `GET /v1/jobs/:id` to poll it — and setting it up is documented there. Any server exposing the same two endpoints will do.
+
+### Upload to Callabo
+
+Settings → Callabo: enter a Personal Access Token, click **Save token / connect**, and select the **default workspace**. Then open a completed recording’s actions menu → **Upload to Callabo**. The dialog lets you choose the workspace, title, visibility, teams, transcription language, labels, and optional access grants. New combined WAV files (including microphone-only WAVs) are supported; merge legacy separate tracks first. Uploads are manual and send the original audio to Callabo for processing under your account’s limits.
+
+On Windows the PAT is saved in the current user's Windows Credential Manager (`net.meetrec.app/Callabo/PAT`), not in `config.json`, logs, or upload receipts. The saved PAT never returns to the webview; the input is cleared after saving. **Remove saved token** deletes this app's credential. There is no plaintext fallback; secure token persistence for other OSes is not implemented yet.
+
+Every dialog starts with a blank title (the API title field is omitted so Callabo can generate one) and `workspace` visibility. Verify visibility before sending. Teams, language, labels, and access grants from the last **successful** upload are saved separately for each workspace. Cancelled/failed uploads do not change these defaults; switching the dialog's workspace does not change the Settings default. Template overrides are not documented by the upload API, so the dialog shows the selected teams' template settings but does not send an invented template field.
+
+A non-secret `<recording>.callabo.json` history stores every remote record ID, workspace, upload choices, and state. A finished recording can be uploaded again, including to another workspace; the recording list displays the successful workspace names once each. Old single-upload receipts are read automatically and preserved when adding uploads. Failed file transfers reuse the unfinished record in the selected workspace only with the same choices on retry. If creation/completion timed out and the result is uncertain, check Callabo before retrying; the app refuses to create a duplicate automatically in that workspace, without blocking other workspaces. Renaming/deleting a local recording also moves/deletes its history, not the remote Callabo records.
+
+Launching MeetRec again restores and focuses the existing window (even from the tray or minimized), without restarting recording or registering another hotkey. When switching from a build without single-instance support, quit that older build through its tray menu once before starting the new executable.
+
+This integration follows the v1 upload protocol used by the [official Callabo CLI](https://github.com/rtzr/callabo-cli) v0.1.13. The [public v2 API](https://callabo.ai/en/developers) does not currently document uploading; workspace API/PAT permissions are required. Mock API tests cover the protocol; live account compatibility still needs verification.
 
 ### Your own whisper server on this machine
 

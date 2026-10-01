@@ -6,11 +6,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod audio;
+mod callabo;
+mod callabo_secret;
 mod config;
 mod delete;
 mod i18n;
 use meeting_recorder::imbalance;
 mod local;
+mod recording;
 mod rename;
 mod retention;
 mod status;
@@ -18,6 +21,8 @@ mod transcribe;
 mod update;
 mod whisper_cpp;
 mod tray;
+mod window;
+use window::show_main_window;
 
 use audio::Ctl;
 use config::Config;
@@ -449,7 +454,8 @@ fn run_retention_cleanup(app: &AppHandle) {
             base: r.name.clone(),
             has_wav: r.mic || r.system,
             has_transcript: r.transcript,
-            busy: recording_busy(&status, &queue, r.folder.as_deref(), &r.name),
+            busy: recording_busy(&status, &queue, r.folder.as_deref(), &r.name)
+                || app.state::<callabo::Uploads>().busy(r.folder.as_deref(), &r.name),
         })
         .collect();
     let now = chrono::Local::now();
@@ -458,7 +464,7 @@ fn run_retention_cleanup(app: &AppHandle) {
             Some(f) => root.join(f),
             None => root.clone(),
         };
-        if let Err(e) = retention::delete_audio(&dir, &base) {
+        if let Err(e) = app.state::<callabo::Uploads>().while_idle(folder.as_deref(), &base, || retention::delete_audio(&dir, &base)) {
             log::warn!("автоочистка звука «{base}»: {e}");
         }
     }
@@ -498,6 +504,8 @@ struct Recording {
     /// — та же причина, что у `quiet_mic_db`: группировка чистая и файлов не
     /// читает, а это сверка не с диском, а с состоянием аудио-потока.
     recording_now: bool,
+    /// Completed private Callabo upload, persisted in a non-secret sidecar.
+    callabo_workspaces: Vec<callabo::UploadedWorkspace>,
 }
 
 #[tauri::command]
@@ -663,12 +671,16 @@ fn group_recordings(
 ) -> Vec<Recording> {
     let mut found: BTreeMap<(String, Option<String>), Recording> = BTreeMap::new();
     for (folder, file, size) in files {
+        let combined = !file.ends_with(".mic.wav") && !file.ends_with(".system.wav");
         let (base, is_mic) = match (file.strip_suffix(".mic.wav"), file.strip_suffix(".system.wav"))
         {
             (Some(b), _) => (b.to_string(), true),
             (_, Some(b)) => (b.to_string(), false),
             // Не наша дорожка — чужой файл в каталоге, не наше дело.
-            _ => continue,
+            _ => match file.strip_suffix(".wav") {
+                Some(b) if meeting_recorder::storage::split_name(b).is_some() => (b.to_string(), true),
+                _ => continue,
+            },
         };
         let key = (base.clone(), folder.clone());
         let transcript = transcripts.contains(&key);
@@ -682,16 +694,20 @@ fn group_recordings(
             duration_sec: 0,
             quiet_mic_db: None,
             recording_now: false,
+            callabo_workspaces: vec![],
         });
         if is_mic {
             rec.mic = true;
         } else {
             rec.system = true;
         }
+        if combined {
+            rec.system = true;
+        }
         rec.size += size;
         // Именно max, а не сумма: дорожки пишутся параллельно, и запись длится
         // столько, сколько длится более полная из них.
-        rec.duration_sec = rec.duration_sec.max(duration_sec(size));
+        rec.duration_sec = rec.duration_sec.max(duration_sec(size) / if combined { 2 } else { 1 });
     }
     // Второй проход: расшифровки, у которых обеих дорожек уже нет (см. докблок
     // выше). Только `or_insert` — запись с хотя бы одной дорожкой уже создана
@@ -708,6 +724,7 @@ fn group_recordings(
             duration_sec: 0,
             quiet_mic_db: None,
             recording_now: false,
+            callabo_workspaces: vec![],
         });
     }
     // Третий проход: файл-спутник побеждает расчёт по размеру — но только для
@@ -855,6 +872,19 @@ fn list_recordings(cache: tauri::State<Cache>, status: tauri::State<Status>) -> 
     let mut list = group_recordings(found.files, &found.transcripts, &found.durations);
     let current = status.snapshot().current_recording;
     for r in &mut list {
+        let dir = match &r.folder {
+            Some(f) => root.join(f),
+            None => root.clone(),
+        };
+        let combined_path = dir.join(format!("{}.wav", r.name));
+        r.callabo_workspaces = callabo::completed_workspaces(&dir, &r.name);
+        if let Ok(reader) = hound::WavReader::open(&combined_path) {
+            r.mic = true;
+            r.system = reader.spec().channels >= 2;
+            if !found.durations.contains_key(&(r.name.clone(), r.folder.clone())) {
+                r.duration_sec = reader.duration() / reader.spec().sample_rate;
+            }
+        }
         r.recording_now = current
             .as_ref()
             .is_some_and(|c| Some(c.folder.as_str()) == r.folder.as_deref() && c.base == r.name);
@@ -863,14 +893,15 @@ fn list_recordings(cache: tauri::State<Cache>, status: tauri::State<Status>) -> 
         if !(r.mic && r.system) {
             continue;
         }
-        let dir = match &r.folder {
-            Some(f) => root.join(f),
-            None => root.clone(),
-        };
         // Только дорожка владельца: системная в решении не участвует — её
         // громкость зависит от колонок собеседника, а не от микрофона
         // (см. докблок `imbalance`).
-        if let Some(m) = cache.levels(&dir.join(format!("{}.mic.wav", r.name))) {
+        let mic_path = if combined_path.exists() {
+            combined_path
+        } else {
+            dir.join(format!("{}.mic.wav", r.name))
+        };
+        if let Some(m) = cache.levels(&mic_path) {
             r.quiet_mic_db = imbalance::quiet_mic(m);
         }
     }
@@ -1089,12 +1120,10 @@ fn rename_recording(
     folder: Option<String>,
     base: String,
     new_tail: String,
+    uploads: tauri::State<callabo::Uploads>,
 ) -> Result<String, String> {
-    let dir = match folder {
-        Some(f) => recordings_root().join(f),
-        None => recordings_root(),
-    };
-    rename::rename_recording(&dir, &base, &new_tail)
+    let dir = recording_dir(&recordings_root(), folder.as_deref(), &base, false)?;
+    uploads.while_idle(folder.as_deref(), &base, || rename::rename_recording(&dir, &base, &new_tail))
 }
 
 /// Удалить запись целиком: обе дорожки и папку расшифровки — в корзину, не
@@ -1115,12 +1144,13 @@ fn delete_recording(
     base: String,
     status: tauri::State<Status>,
     queue: tauri::State<TranscribeQueue>,
+    uploads: tauri::State<callabo::Uploads>,
 ) -> Result<(), String> {
     if recording_busy(&status, &queue, folder.as_deref(), &base) {
         return Err(format!("«{base}» сейчас занята — идёт запись или расшифровка"));
     }
     let dir = recording_dir(&recordings_root(), folder.as_deref(), &base, false)?;
-    delete::delete_recording(&dir, &base)
+    uploads.while_idle(folder.as_deref(), &base, || delete::delete_recording(&dir, &base))
 }
 
 /// `id: None` — вернуться на системный дефолт.
@@ -1409,8 +1439,17 @@ async fn run_transcription(folder: Option<String>, base: String, app: AppHandle)
         Some(f) => recordings_root().join(f),
         None => recordings_root(),
     };
-    let mic_path = dir.join(format!("{base}.mic.wav"));
-    let sys_path = dir.join(format!("{base}.system.wav"));
+    let prepare_dir = dir.clone();
+    let prepare_base = base.to_string();
+    let tracks = tokio::task::spawn_blocking(move || {
+        recording::PreparedTracks::open(&prepare_dir, &prepare_base)
+    })
+        .await.map_err(|e| e.to_string())?.map_err(|e| {
+            emit_transcribe_error(app, folder, base, &e);
+            e
+        })?;
+    let mic_path = tracks.mic.clone();
+    let sys_path = tracks.system.clone();
 
     let client = match reqwest::Client::builder().build() {
         Ok(c) => c,
@@ -1613,7 +1652,12 @@ fn main() {
     let (transcribe_queue, transcribe_rx) = TranscribeQueue::new();
 
     tauri::Builder::default()
-        // Первым — до .manage(Status::default()), у которого свой докблок
+        // Must precede every other plugin: the second process exits before
+        // registering hotkeys, creating a tray icon or starting audio workers.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
+        // После single-instance — до .manage(Status::default()), у которого свой докблок
         // «аудио-поток пишет сюда с первой же строки»: если сбой случится
         // раньше, чем плагин поднимется, он снова уйдёт в никуда, ровно как
         // раньше уходил eprintln! из GUI без консоли.
@@ -1636,6 +1680,7 @@ fn main() {
         .manage(Cache::default())
         .manage(transcribe_queue)
         .manage(update::UpdateState::default())
+        .manage(callabo::Uploads::default())
         .invoke_handler(tauri::generate_handler![
             send_event,
             get_state,
@@ -1646,6 +1691,12 @@ fn main() {
             open_url,
             list_mic_devices,
             get_config,
+            callabo::callabo_workspaces,
+            callabo::callabo_auth_status,
+            callabo::callabo_forget_token,
+            callabo::callabo_dialog_data,
+            callabo::set_callabo_workspace,
+            callabo::callabo_upload,
             set_mic_device,
             set_language,
             set_theme,
@@ -1749,10 +1800,7 @@ fn main() {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
                 if !has_visible_windows {
-                    if let Some(w) = app_handle.get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.set_focus();
-                    }
+                    show_main_window(app_handle);
                 }
             }
         });
@@ -1796,6 +1844,7 @@ mod tests {
             duration_sec: 0,
             quiet_mic_db: None,
             recording_now: false,
+            callabo_workspaces: vec![],
         }
     }
 
@@ -1854,6 +1903,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn two_channel_wav_is_one_complete_recording() {
+        let size = WAV_HEADER_BYTES + 600 * WAV_BYTES_PER_SEC * 2;
+        let list = group(&[(Some("2026-07"), "2026-07-17_14-45_zoom.wav", size)]);
+        assert_eq!(list.len(), 1);
+        assert!(list[0].mic && list[0].system);
+        assert_eq!(list[0].name, "2026-07-17_14-45_zoom");
+        assert_eq!(list[0].size, size);
+        assert_eq!(list[0].duration_sec, 600);
+    }
+
     /// Отсутствие дорожки — не косметика: пара mic+system и есть запись, и UI
     /// показывает неполную пару предупреждением.
     #[test]
@@ -1873,7 +1933,7 @@ mod tests {
         assert_eq!(
             group(&[
                 (None, "заметки.txt", 10),
-                (None, "2026-07-17_14-45_zoom.wav", 10),
+                (None, "foreign_zoom.wav", 10),
                 (None, "mic.wav", 10),
                 (None, ".mic.wav.bak", 10),
                 (None, "2026-07-17_14-45_zoom.mic.wav", 100),

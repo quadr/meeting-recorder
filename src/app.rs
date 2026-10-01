@@ -75,6 +75,29 @@ pub trait Sink {
 pub trait SinkFactory {
     fn create(&self, dir: &Path, filename: &str) -> Res<Box<dyn Sink>>;
 
+    /// Open both logical sources together. A factory may store them as
+    /// channels of one file; the default retains independent sink backends.
+    fn create_pair(
+        &self,
+        dir: &Path,
+        mic: &str,
+        sys: &str,
+        has_system: bool,
+    ) -> Res<(Box<dyn Sink>, Option<Box<dyn Sink>>)> {
+        let mic_sink = self.create(dir, mic)?;
+        if !has_system {
+            return Ok((mic_sink, None));
+        }
+        match self.create(dir, sys) {
+            Ok(sys_sink) => Ok((mic_sink, Some(sys_sink))),
+            Err(e) => {
+                let _ = mic_sink.finalize();
+                let _ = std::fs::remove_file(dir.join(mic));
+                Err(e)
+            }
+        }
+    }
+
     /// Пишет файл-спутник `<base>.meta.json` рядом с дорожками — длительность
     /// записи, которая переживает автоочистку звука (см. `retention.rs`: та
     /// трогает только `.wav`). Без него список записей (`group_recordings` в
@@ -172,9 +195,94 @@ impl Sink for WavSink {
 
 struct WavSinks;
 
+/// Both capture streams feed one interleaved WAV. Callback chunk boundaries
+/// need not match, so retain unmatched frames between pumps.
+struct SharedWav {
+    sink: Option<WavSink>,
+    path: PathBuf,
+    pending: [std::collections::VecDeque<i16>; 2],
+}
+
+impl SharedWav {
+    fn flush(&mut self, finish: bool) -> Res {
+        let paired = self.pending[0].len().min(self.pending[1].len());
+        let longest = self.pending[0].len().max(self.pending[1].len());
+        // Allow one second of callback skew. A disconnected stream must not
+        // buffer the rest of a meeting indefinitely; fill its missing frames.
+        let frames = if finish {
+            longest
+        } else {
+            paired.max(longest.saturating_sub(SAMPLE_RATE as usize))
+        };
+        let mut interleaved = Vec::with_capacity(frames * 2);
+        for _ in 0..frames {
+            interleaved.push(self.pending[0].pop_front().unwrap_or(0));
+            interleaved.push(self.pending[1].pop_front().unwrap_or(0));
+        }
+        if let Some(sink) = self.sink.as_mut() {
+            sink.write(&interleaved)?;
+        }
+        Ok(())
+    }
+}
+
+struct WavChannel {
+    shared: std::rc::Rc<std::cell::RefCell<SharedWav>>,
+    channel: usize,
+}
+
+impl Sink for WavChannel {
+    fn write(&mut self, samples: &[i16]) -> Res {
+        let mut shared = self.shared.borrow_mut();
+        shared.pending[self.channel].extend(samples.iter().copied());
+        // App writes mic then system, including the entire pre-recording ring.
+        if self.channel == 1 {
+            shared.flush(false)?;
+        }
+        Ok(())
+    }
+
+    fn finalize(self: Box<Self>) -> Res<PathBuf> {
+        let mut shared = self.shared.borrow_mut();
+        if std::rc::Rc::strong_count(&self.shared) == 1 {
+            let tail = shared.flush(true);
+            let closed = shared.sink.take().map(WavSink::finalize).transpose();
+            tail?;
+            closed?;
+        }
+        Ok(shared.path.clone())
+    }
+}
+
 impl SinkFactory for WavSinks {
     fn create(&self, dir: &Path, filename: &str) -> Res<Box<dyn Sink>> {
         Ok(Box::new(WavSink::create(dir, filename)?))
+    }
+
+    fn create_pair(
+        &self,
+        dir: &Path,
+        mic: &str,
+        _sys: &str,
+        has_system: bool,
+    ) -> Res<(Box<dyn Sink>, Option<Box<dyn Sink>>)> {
+        let base = mic.strip_suffix(".mic.wav").ok_or("invalid recording name")?;
+        let filename = format!("{base}.wav");
+        if !has_system {
+            return Ok((Box::new(WavSink::create(dir, &filename)?), None));
+        }
+        let shared = std::rc::Rc::new(std::cell::RefCell::new(SharedWav {
+            sink: Some(WavSink::create_channels(dir, &filename, 2)?),
+            path: dir.join(filename),
+            pending: Default::default(),
+        }));
+        Ok((
+            Box::new(WavChannel {
+                shared: shared.clone(),
+                channel: 0,
+            }),
+            Some(Box::new(WavChannel { shared, channel: 1 })),
+        ))
     }
 
     /// Формат зафиксирован намеренно узко — `{"v":1,"duration_sec":N}` и ни
@@ -1006,7 +1114,7 @@ impl App {
         Ok(())
     }
 
-    /// Открывает обе дорожки под одним, гарантированно свободным именем.
+    /// Open the capture channels under one unused recording name.
     fn open_sinks(&mut self) -> Res {
         let src = self.current_source.clone();
         let dir = month_dir(&self.root, self.started);
@@ -1023,31 +1131,13 @@ impl App {
             .unwrap_or_default();
         let base = mic.strip_suffix(".mic.wav").unwrap_or(&mic).to_string();
         self.current_recording = Some((folder, base));
-        // Порядок важен: если вторая дорожка не открылась, первую надо закрыть,
-        // иначе на диске останется осиротевший mic-файл.
-        let sink_mic = self.sinks.create(&dir, &mic)?;
-        // Дорожки, которую нечем наполнить, на диске быть не должно — см.
-        // докблок `AudioIo::has_system`. Имя `sys` при этом всё равно выбрано
-        // выше и не пропадает: `free_name_pair` считает пару занятой, если
-        // занято ЛЮБОЕ из двух имён, так что следующая запись — хоть с
-        // разрешением, хоть без — на это имя уже не сядет.
-        if !self.audio.has_system() {
-            self.sink_mic = Some(sink_mic);
-            self.sink_sys = None;
-            return Ok(());
-        }
-        match self.sinks.create(&dir, &sys) {
-            Ok(sink_sys) => {
-                self.sink_mic = Some(sink_mic);
-                self.sink_sys = Some(sink_sys);
-                Ok(())
-            }
-            Err(e) => {
-                let _ = sink_mic.finalize();
-                let _ = std::fs::remove_file(dir.join(&mic));
-                Err(e)
-            }
-        }
+        // Production sinks share one WAV; keep separate logical inputs for
+        // capture, level meters, and the microphone-only fallback.
+        let (sink_mic, sink_sys) =
+            self.sinks.create_pair(&dir, &mic, &sys, self.audio.has_system())?;
+        self.sink_mic = Some(sink_mic);
+        self.sink_sys = sink_sys;
+        Ok(())
     }
 
     /// Дописывает хвост и финализирует обе дорожки.
@@ -1309,12 +1399,19 @@ fn with_seq(base: &str, n: u32) -> String {
 fn free_name_pair(dir: &Path, started: DateTime<Local>, source: &str) -> Res<(String, String)> {
     let mic = recording_filename(started, source, Track::Mic);
     let sys = recording_filename(started, source, Track::System);
-    if !dir.join(&mic).exists() && !dir.join(&sys).exists() {
+    let available = |m: &str, s: &str| {
+        let base = m.strip_suffix(".mic.wav").unwrap_or(m);
+        !dir.join(m).exists() && !dir.join(s).exists()
+            && !dir.join(format!("{base}.wav")).exists()
+            && !dir.join(format!("{base}.meta.json")).exists()
+            && !dir.join(format!("{base}.transcript")).exists()
+    };
+    if available(&mic, &sys) {
         return Ok((mic, sys));
     }
     for n in 2..=MAX_SEQ {
         let (m, s) = (with_seq(&mic, n), with_seq(&sys, n));
-        if !dir.join(&m).exists() && !dir.join(&s).exists() {
+        if available(&m, &s) {
             return Ok((m, s));
         }
     }
@@ -1335,6 +1432,51 @@ mod tests {
     use chrono::TimeZone;
     use std::cell::RefCell;
     use std::rc::Rc;
+
+    #[test]
+    fn single_wav_preserves_channels_across_unequal_capture_chunks() {
+        let dir = ScratchDir::new("multichannel");
+        let (mut mic, sys) = WavSinks.create_pair(&dir, "2026-07-17_14-30_zoom.mic.wav",
+            "2026-07-17_14-30_zoom.system.wav", true).unwrap();
+        let mut sys = sys.unwrap();
+        mic.write(&[1, 2, 3]).unwrap();
+        sys.write(&[10]).unwrap();
+        mic.write(&[4]).unwrap();
+        sys.write(&[20, 30]).unwrap();
+        mic.finalize().unwrap();
+        let path = sys.finalize().unwrap();
+        let mut reader = hound::WavReader::open(path).unwrap();
+        assert_eq!(reader.spec().channels, 2);
+        assert_eq!(reader.spec().sample_rate, SAMPLE_RATE);
+        assert_eq!(reader.spec().bits_per_sample, 16);
+        assert_eq!(reader.duration(), 4);
+        assert_eq!(reader.samples::<i16>().collect::<Result<Vec<_>, _>>().unwrap(),
+            [1, 10, 2, 20, 3, 30, 4, 0]);
+        let names: Vec<_> = std::fs::read_dir(&*dir).unwrap().collect();
+        assert_eq!(names.len(), 1, "only one audio file may be created");
+    }
+
+    #[test]
+    fn single_wav_name_collision_keeps_existing_audio() {
+        let dir = ScratchDir::new("combined-collision");
+        std::fs::write(dir.join("2026-07-17_14-30_zoom.wav"), b"existing").unwrap();
+        let (mic, sys) = free_name_pair(&dir, момент(), "zoom").unwrap();
+        assert_eq!(mic, "2026-07-17_14-30_zoom_2.mic.wav");
+        assert_eq!(sys, "2026-07-17_14-30_zoom_2.system.wav");
+        assert_eq!(std::fs::read(dir.join("2026-07-17_14-30_zoom.wav")).unwrap(), b"existing");
+    }
+
+    #[test]
+    fn capture_without_system_creates_one_mono_wav() {
+        let dir = ScratchDir::new("combined-mono");
+        let (mut mic, sys) = WavSinks.create_pair(&dir, "2026-07-17_14-30_zoom.mic.wav",
+            "2026-07-17_14-30_zoom.system.wav", false).unwrap();
+        assert!(sys.is_none());
+        mic.write(&[1, 2]).unwrap();
+        let reader = hound::WavReader::open(mic.finalize().unwrap()).unwrap();
+        assert_eq!(reader.spec().channels, 1);
+        assert_eq!(reader.duration(), 2);
+    }
 
     fn момент() -> DateTime<Local> {
         Local.with_ymd_and_hms(2026, 7, 17, 14, 30, 0).unwrap()
@@ -2859,7 +3001,7 @@ mod tests {
 
         let dir = root.join(&folder);
         assert!(
-            dir.join(format!("{base}.mic.wav")).exists(),
+            dir.join(format!("{base}.wav")).exists(),
             "дорожка микрофона обязана лежать на диске"
         );
         let meta_path = dir.join(format!("{base}.meta.json"));
