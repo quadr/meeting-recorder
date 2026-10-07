@@ -115,10 +115,10 @@ test("uploaded recording can be uploaded to another workspace and uploaded again
   assert.equal(h.errors.length, 0); assert.equal(h.uploads.size, 0);
 });
 
-test("recording menu remains available after upload and displays workspace history", () => {
+test("recording menu remains available after upload and linked cards are wired", () => {
   const source = readFileSync(join(__dirname, "../ui/main.js"), "utf8");
   assert(!source.includes("callabo_record_id"));
-  assert(source.includes('i18n.t("callabo.history"'));
+  assert(source.includes('callaboRecords.render(запись)'));
   const condition = source.split("\n").find((line) => line.includes("if ((запись.mic || запись.system)"));
   assert(condition && !condition.includes("callabo_workspaces"));
 });

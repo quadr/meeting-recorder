@@ -42,6 +42,8 @@ UI = ЗДЕСЬ.parent.parent / "ui"
 }
 
 СЦЕНЫ = [
+    ("callabo", "Callabo — upload, processing, summary, offline"),
+    ("callabo-ready", "Callabo — summary and multiple linked records"),
     ("idle", "Покой"),
     ("armed", "Взвод — окно открыли, пока вопрос висит"),
     ("ask", "Всплывашка «Записать встречу?»"),

@@ -119,7 +119,7 @@ test("recording and Callabo controls and workspace history stay available", () =
     assert(html.includes(`id="${id}"`), id);
   }
   assert(source.includes('listen("callabo-progress"'));
-  assert(source.includes('i18n.t("callabo.history"'));
+  assert(source.includes('callaboRecords.render(запись)'));
   assert(source.includes('invoke("rename_recording"'));
   assert(source.includes('invoke("delete_recording"'));
 });

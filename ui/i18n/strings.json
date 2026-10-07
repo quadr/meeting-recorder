@@ -9,6 +9,27 @@
     "форматированием по языку, иначе пришлось бы держать список месяцев руками."
   ],
   "callabo": {
+    "renameLocal": {"en":"Rename local file","ru":"Переименовать локальный файл"},
+    "notUploaded": {"en":"Not uploaded to Callabo","ru":"Не загружено в Callabo"},
+    "uploadBusy": {"en":"Uploading…","ru":"Загрузка…"},
+    "uploadFailed": {"en":"Callabo upload failed","ru":"Ошибка загрузки в Callabo"},
+    "retryUpload": {"en":"Retry upload…","ru":"Повторить загрузку…"},
+    "checking": {"en":"Uploaded · checking Callabo…","ru":"Загружено · проверка Callabo…"},
+    "checkingHint": {"en":"Audio uploaded. Checking the processing status.","ru":"Аудио загружено. Проверяем состояние обработки."},
+    "processing": {"en":"Callabo is processing…","ru":"Callabo обрабатывает запись…"},
+    "processingHint": {"en":"Upload complete. The title and summary will appear when ready.","ru":"Загрузка завершена. Название и резюме появятся после обработки."},
+    "ready": {"en":"Connected to Callabo","ru":"Связано с Callabo"},
+    "unknown": {"en":"Callabo status unknown","ru":"Статус Callabo неизвестен"},
+    "statusUnavailable": {"en":"Cannot check Callabo status","ru":"Не удалось проверить статус Callabo"},
+    "failed": {"en":"Callabo processing failed","ru":"Ошибка обработки в Callabo"},
+    "summary_failed": {"en":"Callabo could not generate a summary","ru":"Callabo не удалось создать резюме"},
+    "open": {"en":"Open in Callabo ↗","ru":"Открыть в Callabo ↗"},
+    "refresh": {"en":"Refresh","ru":"Обновить"},
+    "checkAgain": {"en":"Check again","ru":"Проверить снова"},
+    "primaryLink": {"en":"Callabo record shown on this card","ru":"Запись Callabo для этой карточки"},
+    "summaryMore": {"en":"Full summary","ru":"Полное резюме"},
+    "noSummary": {"en":"Processing complete. No summary is available.","ru":"Обработка завершена. Резюме отсутствует."},
+    "syncedAt": {"en":"Updated {date}","ru":"Обновлено {date}"},
     "token": {
       "ru": "Персональный токен доступа",
       "en": "Personal Access Token"

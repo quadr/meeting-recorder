@@ -65,6 +65,20 @@
     СПИСОК[0].name = имя_файла(t(0, 10, 0), "x").slice(0, 17) + ДЛИННОЕ_ИМЯ;
   }
   if (S === "done" || S === "menudone") СПИСОК[0].transcript = true;
+  const callaboScene = S.startsWith("callabo");
+  const callaboLink = (id, status, extra = {}) => ({
+    uuid: `preview-${id}`, workspace: "product", workspace_name: "Product team", record_id: id,
+    url: `https://callabo.ai/en/workspace/product/record/${id}/detail`,
+    remote: { status, title: status === "ready" ? "October product planning" : null,
+      summary: status === "ready" ? "# 오픈 API 텍스트 인사이트 큐/워커 구조 PR 코드리뷰\n\n## 한줄 요약\n사용자가 텍스트를 보내면 **인사이트를 반환하는 API**의 큐와 워커 구조를 검토했다.\n\n## 주요 결정\n- 요청 처리와 워커 실행을 분리한다.\n- 재시도 정책을 명확히 한다.\n  - 실패한 작업은 최대 3회 재시도한다.\n  - `record_id`로 중복 실행을 방지한다.\n\n### 다음 할 일\n1. API 응답 형식 확정\n2. 부하 테스트 결과 공유\n\n> 배포 전에 장애 복구 시나리오를 확인한다.\n\n| 담당 | 작업 |\n| --- | --- |\n| API 팀 | 인터페이스 정리 |\n| 플랫폼 팀 | 워커 검증 |\n\n```json\n{ \"status\": \"processing\", \"record_id\": 101 }\n```" : "",
+      synced_at: 1791331200, checked_at: 1791331200, error: null, ...extra },
+  });
+  if (callaboScene) {
+    СПИСОК[0].callabo_links = [callaboLink(101, "ready"), { ...callaboLink(102, "ready"), workspace: "research", workspace_name: "Research" }];
+    СПИСОК[1].callabo_links = [callaboLink(103, "processing")];
+    СПИСОК[2].callabo_links = [callaboLink(104, "ready", { error: "Callabo record lookup: network error or timeout. Check your connection." })];
+    СПИСОК[3].callabo_links = [callaboLink(105, "failed")];
+  }
 
   // ── Снимок состояния, который отдаёт get_state ──────────────────────────
   const снимок = {
@@ -86,7 +100,19 @@
   };
 
   const команды = {
-    callabo_auth_status: () => пауза(0, false),
+    callabo_auth_status: () => пауза(0, callaboScene),
+    callabo_workspaces: () => [{slug:"product",name:"Product team"}],
+    set_callabo_workspace: () => null,
+    callabo_sync_record: ({uuid}) => СПИСОК.flatMap(item => item.callabo_links ?? []).find(link => link.uuid === uuid),
+    callabo_dialog_data: () => ({teams:[],labels:[],preferences:{},warnings:[]}),
+    callabo_upload: async ({folder, base}) => {
+      emit("callabo-progress", {folder,base,stage:"uploading"});
+      await пауза(1500);
+      const item = СПИСОК.find(item => item.name === base);
+      if (item) item.callabo_links = [...(item.callabo_links ?? []),callaboLink(110,"processing")];
+      emit("callabo-progress", {folder,base,stage:"done"});
+      return null;
+    },
     get_state: () => {
       // В приложении `ask` уходит раньше смены состояния — повторяем порядок,
       // иначе строка взвода не узнает, кого услышали.
@@ -95,7 +121,7 @@
     },
     // Сцена «первая загрузка» — это список, который не приехал никогда.
     list_recordings: () =>
-      пауза(S === "loading" ? 1e9 : 260, S === "empty" ? [] : СПИСОК),
+      пауза(S === "loading" ? 1e9 : 260, S === "empty" ? [] : S === "callabo-ready" ? СПИСОК.slice(0,1) : СПИСОК),
     list_mic_devices: () =>
       пауза(120, [
         { id: "id-1", name: ДЛИННЫЙ_МИК },
@@ -207,6 +233,7 @@
       getCurrentWindow: () => ({
         hide: () => Promise.resolve(),
         setTitle: () => Promise.resolve(),
+        isVisible: () => Promise.resolve(true),
       }),
     },
     // `main.js` разбирает `app` НА ВЕРХНЕМ УРОВНЕ, седьмой строкой. Без этой
@@ -232,6 +259,7 @@
       const первая = { folder: СПИСОК[0].folder, base: СПИСОК[0].name };
       const вторая = { folder: СПИСОК[1].folder, base: СПИСОК[1].name };
       const третья = { folder: СПИСОК[2].folder, base: СПИСОК[2].name };
+      if (S === "callabo") emit("callabo-progress", { folder: СПИСОК[4].folder, base: СПИСОК[4].name, stage: "uploading" });
 
       if (S === "transcribing") emit("transcribe-progress", { ...первая, stage: "polling" });
       if (S === "queued") {

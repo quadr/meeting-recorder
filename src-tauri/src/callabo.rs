@@ -14,6 +14,8 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager};
 
 const API: &str = "https://api.callabo.ai";
+pub mod linked;
+pub use linked::{completed_links, LinkedRecord, RemoteRecord};
 type Key = (Option<String>, String);
 
 #[derive(Default)]
@@ -210,6 +212,8 @@ pub struct Receipt {
     stage: String,
     #[serde(default)]
     options: Option<UploadOptions>,
+    #[serde(default)]
+    remote: Option<RemoteRecord>,
 }
 
 impl Receipt {
@@ -254,8 +258,22 @@ impl Journal {
     fn save(&self, path: &Path) -> Result<(), String> {
         let data = serde_json::to_vec_pretty(self)
             .map_err(|_| "Cannot serialize Callabo upload history")?;
-        std::fs::write(path, data)
-            .map_err(|_| "Cannot save Callabo upload history. Check folder permissions.".into())
+        let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+        let result = (|| {
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            file.write_all(&data)?;
+            file.sync_all()?;
+            drop(file);
+            std::fs::rename(&temporary, path)
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+        }
+        result.map_err(|_| "Cannot save Callabo upload history. Check folder permissions.".into())
     }
 
     fn remove_attempt(path: &Path, uuid: &str) -> Result<(), String> {
@@ -643,6 +661,7 @@ async fn upload(
             filesize: metadata.len(),
             stage: "creating".into(),
             options: Some(options.clone()),
+            remote: None,
         },
     };
     if receipt.record_id.is_none() {
@@ -1334,6 +1353,7 @@ mod tests {
             filesize: 108,
             stage: stage.into(),
             options: Some(UploadOptions::default()),
+            remote: None,
         }
     }
 

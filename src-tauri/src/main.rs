@@ -170,6 +170,7 @@ struct Recording {
     recording_now: bool,
     /// Completed private Callabo upload, persisted in a non-secret sidecar.
     callabo_workspaces: Vec<callabo::UploadedWorkspace>,
+    callabo_links: Vec<callabo::LinkedRecord>,
 }
 
 #[tauri::command]
@@ -318,6 +319,7 @@ fn group_recordings(
             system_muted: false,
             recording_now: false,
             callabo_workspaces: vec![],
+            callabo_links: vec![],
         });
         if is_mic {
             rec.mic = true;
@@ -457,6 +459,7 @@ fn list_recordings(
         };
         let combined_path = dir.join(format!("{}.wav", r.name));
         r.callabo_workspaces = callabo::completed_workspaces(&dir, &r.name);
+        r.callabo_links = callabo::completed_links(&dir, &r.name);
         if let Some(meta) = read_recording_meta(&dir.join(format!("{}.meta.json", r.name))) {
             r.mic_muted = meta.mic_muted;
             r.system_muted = meta.system_muted;
@@ -870,6 +873,7 @@ fn main() {
             callabo::callabo_dialog_data,
             callabo::set_callabo_workspace,
             callabo::callabo_upload,
+            callabo::linked::callabo_sync_record,
             set_mic_device,
             set_language,
             set_theme,
@@ -1013,6 +1017,7 @@ mod tests {
             system_muted: false,
             recording_now: false,
             callabo_workspaces: vec![],
+            callabo_links: vec![],
         }
     }
 

@@ -1,6 +1,6 @@
 // Callabo settings and per-upload dialog. A saved PAT never returns to JS.
 (function (root) {
-  function createCallaboUI({ $, invoke, t, language = () => "en", keyOf = (folder, base) => `${folder ?? ""}::${base}`, showError, showSettings, saved, uploads, refresh }) {
+  function createCallaboUI({ $, invoke, t, language = () => "en", keyOf = (folder, base) => `${folder ?? ""}::${base}`, showError, showSettings, saved, uploads, refresh, onAuthChange = () => {}, onUploadError = () => {}, onUploadStart = () => {} }) {
     let workspaces = [];
     let defaultWorkspace = null;
     let connected = false;
@@ -39,6 +39,7 @@
         if (token !== $("callabo-token").value.trim()) return;
         workspaces = result;
         hasCredential = true;
+        onAuthChange(true);
         $("callabo-token").value = "";
         tokenStatus();
         const select = $("callabo-workspace");
@@ -55,6 +56,7 @@
     async function initialize(workspace) {
       defaultWorkspace = workspace;
       hasCredential = await invoke("callabo_auth_status");
+      onAuthChange(hasCredential);
       tokenStatus();
       if (hasCredential) await connect();
     }
@@ -172,13 +174,14 @@
       if (uploads.has(key)) return;
       const workspace = $("callabo-upload-workspace").value;
       submitting = true;
+      onUploadStart(item);
       uploads.set(key, "creating");
       refresh();
       dialog.close();
       try {
         await invoke("callabo_upload", { folder: item.folder ?? null, base: item.name, workspace,
           workspaceName: workspaces.find((w) => w.slug === workspace)?.name ?? null, options });
-      } catch (e) { fail(`${item.name}: ${e}`); }
+      } catch (e) { onUploadError(item, e); fail(`${item.name}: ${e}`); }
       finally { submitting = false; uploads.delete(key); refresh(); buttonState(); }
     }
 
@@ -191,6 +194,7 @@
         await invoke("callabo_forget_token");
         $("callabo-token").value = "";
         hasCredential = false; connected = false; workspaces = [];
+        onAuthChange(false);
         $("callabo-workspace").disabled = true;
         tokenStatus();
       } catch (e) { fail(e); }

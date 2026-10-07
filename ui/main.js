@@ -22,8 +22,15 @@ const callaboUI = window.createCallaboUI({
   showError: (title, error) => показать_ошибку(title, error),
   showSettings: () => перейти_на("settings"), saved: (id) => показать_сохранено(id),
   uploads: callaboUploads, refresh: () => обновить_список(),
+  onAuthChange: (enabled) => callaboRecords.setEnabled(enabled),
+  onUploadError: (item, error) => callaboRecords.uploadFailed(item, error),
+  onUploadStart: (item) => callaboRecords.uploadStarted(item),
 });
 function uploadToCallabo(recording) { return callaboUI.open(recording); }
+const callaboRecords = window.createCallaboRecords({
+  invoke, t: (key, params) => i18n.t(key, params), keyOf: ключ_записи,
+  refresh: () => обновить_список(), upload: uploadToCallabo, uploads: callaboUploads,
+});
 
 const muteUI = window.createMuteUI({
   $, invoke, t: (key) => i18n.t(key), showError: (title, error) => показать_ошибку(title, error),
@@ -589,7 +596,7 @@ function собрать_меню(запись, узел_имени) {
   const callaboBusy = callaboUploads.has(ключ);
   const занята = запись.recording_now || callaboBusy;
   if (!занята) {
-    меню.append(пункт_меню(ЗНАЧКИ.карандаш, i18n.t("menu.rename"), () => начать_переименование(запись, узел_имени)));
+    меню.append(пункт_меню(ЗНАЧКИ.карандаш, i18n.t(запись.callabo_links?.length ? "callabo.renameLocal" : "menu.rename"), () => начать_переименование(запись, узел_имени)));
   }
   if ((запись.mic || запись.system) && !запись.recording_now && !callaboBusy) {
     меню.append(пункт_меню(ЗНАЧКИ.документ, i18n.t("callabo.upload"), () => uploadToCallabo(запись)));
@@ -700,42 +707,22 @@ function строка_записи(запись) {
   колонка.className = "col";
   const название = document.createElement("span");
   название.className = "title";
-  название.textContent = ист.имя;
+  название.textContent = callaboRecords.title(запись) || ист.имя;
   // Название обрезается многоточием — полное отдаём подсказкой, иначе после
   // переименования его будет не прочитать.
-  название.title = ист.имя;
+  название.title = название.textContent;
 
   const ключ = ключ_записи(запись.folder, запись.name);
   const ошибка_имени = ошибки_переименования.get(ключ);
 
   const мета = document.createElement("div");
   мета.className = "sub";
-  if (callaboUploads.has(ключ)) {
-    мета.textContent = i18n.t(`callabo.${callaboUploads.get(ключ)}`);
-  } else {
-    мета.textContent = длительность(запись.duration_sec);
-    const хвост = document.createElement("span");
-    хвост.className = "more";
-    хвост.textContent = ` · ${размер(запись.size)}`;
-    мета.append(хвост);
-  }
+  мета.textContent = длительность(запись.duration_sec);
+  const хвост = document.createElement("span");
+  хвост.className = "more";
+  хвост.textContent = ` · ${размер(запись.size)}`;
+  мета.append(хвост);
   колонка.append(название, мета);
-  if (запись.callabo_workspaces?.length) {
-    const uploaded = document.createElement("div");
-    uploaded.className = "sub";
-    uploaded.textContent = i18n.t("callabo.history", { workspaces: запись.callabo_workspaces.map((w) => w.name).join(", ") });
-    колонка.append(uploaded);
-  }
-
-  // Полоска неопределённая: сервер не сообщает процент, и врать процентом
-  // нельзя. У записи в очереди её нет — ждать нечего показывать.
-  if (callaboUploads.has(ключ)) {
-    const полоска = document.createElement("div");
-    полоска.className = "prog";
-    полоска.append(document.createElement("i"));
-    колонка.append(полоска);
-  }
-
   const справа = document.createElement("div");
   справа.className = "right";
   const время = document.createElement("span");
@@ -756,6 +743,8 @@ function строка_записи(запись) {
 
   главное.append(плашка, колонка, справа);
   li.append(главное);
+  const callaboPanel = callaboRecords.render(запись);
+  if (callaboPanel) li.append(callaboPanel);
 
   const беды = беды_записи(запись, ошибка_имени);
   // Подтверждение удаления встаёт в тот же ряд карточек, что и «беды», тем же
@@ -854,6 +843,8 @@ function подпись_строки(з, ключ) {
     з.system_muted,
     з.recording_now,
     з.callabo_workspaces,
+    з.callabo_links,
+    callaboRecords.signature(з),
     callaboUploads.get(ключ) ?? null,
     ошибки_переименования.get(ключ) ?? null,
     подтверждение_удаления.has(ключ),
@@ -1057,6 +1048,7 @@ async function обновить_список() {
   // Скелетон уходит навсегда: дальше список обновляется точечно, и подменять
   // готовые строки заглушками было бы враньём.
   $("skeleton").hidden = true;
+  callaboRecords.setRecordings(записи);
   отрисовать_список(записи);
 }
 
@@ -1847,6 +1839,12 @@ async function старт() {
   const callaboConfig = await invoke("get_config");
   callaboUI.initialize(callaboConfig.callabo_workspace ?? null)
     .catch((e) => показать_ошибку(i18n.t("callabo.error"), e));
+  // A hidden tray window must not poll the network. Each tick admits one lookup.
+  setInterval(async () => {
+    if (document.hidden) return;
+    try { if (await getCurrentWindow().isVisible()) await callaboRecords.tick(); } catch {}
+  }, 5000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) callaboRecords.tick(); });
 }
 
 старт();

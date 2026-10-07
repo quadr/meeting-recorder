@@ -1,0 +1,43 @@
+.callabo-record { margin: 4px 8px 14px 50px; padding: 12px; background: color-mix(in srgb, #2e67fe 6%, var(--card)); border: 1px solid color-mix(in srgb, #2e67fe 16%, var(--line)); border-radius: var(--r-md); min-width: 0; }
+.callabo-record.callabo-empty { background: transparent; border: 0; padding: 0; }
+.callabo-record-header, .callabo-record-footer { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+.callabo-identity { display:flex; align-items:center; gap:8px; min-width:0; flex:1; }
+.callabo-caption { min-width:0; }
+.callabo-mark { width:24px; height:24px; flex:none; }
+.callabo-record button.callabo-action { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:12px; padding:6px 8px; white-space:normal; }
+.callabo-action .callabo-mark { width:18px; height:18px; }
+.callabo-status { font-size:12px; font-weight:500; overflow-wrap:anywhere; }
+.callabo-context { font-size:11px; color:var(--muted); overflow-wrap:anywhere; margin:4px 0 0; }
+.callabo-error { color:var(--error); }
+.callabo-summary-preview { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:10px 0 6px; font-size:12px; color:var(--muted); }
+.callabo-summary-preview[hidden] { display:none; }
+.callabo-summary { margin-top:8px; font-size:12px; }
+.callabo-summary > summary { cursor:pointer; padding:3px 0; }
+.callabo-summary-full { overflow-wrap:anywhere; margin:12px 0 4px; padding-top:12px; border-top:1px solid var(--line); line-height:1.65; }
+.callabo-summary-full :is(h1,h2,h3,h4,h5,h6) { color:inherit; text-transform:none; letter-spacing:normal; font-weight:600; line-height:1.45; margin:18px 0 7px; }
+.callabo-summary-full h1 { font-size:16px; }
+.callabo-summary-full h2 { font-size:14px; }
+.callabo-summary-full :is(h3,h4,h5,h6) { font-size:12px; }
+.callabo-summary-full > :first-child { margin-top:0; }
+.callabo-summary-full > :last-child { margin-bottom:0; }
+.callabo-summary-full p { margin:8px 0; }
+.callabo-summary-full :is(ul,ol) { margin:8px 0; padding-left:20px; }
+.callabo-summary-full ul { list-style:disc; }
+.callabo-summary-full ul ul { list-style:circle; }
+.callabo-summary-full ol { list-style:decimal; }
+.callabo-summary-full li { margin:4px 0; }
+.callabo-summary-full li > :is(ul,ol) { margin:4px 0; }
+.callabo-summary-full a { color:var(--accent, #2e67fe); text-decoration:underline; }
+.callabo-summary-full blockquote { margin:10px 0; padding:1px 10px; border-left:3px solid var(--line); color:var(--muted); }
+.callabo-summary-full code { font-family:ui-monospace, Consolas, monospace; font-size:11px; background:var(--card); padding:2px 4px; border-radius:3px; }
+.callabo-summary-full pre { margin:10px 0; padding:10px; overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:6px; white-space:pre; }
+.callabo-summary-full pre code { padding:0; background:transparent; }
+.callabo-summary-full hr { border:0; border-top:1px solid var(--line); margin:14px 0; }
+.callabo-table-scroll { overflow-x:auto; margin:10px 0; }
+.callabo-summary-full table { width:100%; border-collapse:collapse; font-size:11px; }
+.callabo-summary-full :is(th,td) { border:1px solid var(--line); padding:6px 8px; min-width:64px; text-align:left; vertical-align:top; }
+.callabo-summary-full th { font-weight:600; background:var(--card); }
+.callabo-record-footer { margin-top:10px; }
+.callabo-link-select { margin-top:10px; max-width:100%; width:100%; font-size:12px; }
+@media(max-width:380px) { .callabo-record { margin-left:8px; } }
+@media(prefers-reduced-motion:reduce) { .callabo-record .prog > i { animation:none; margin-left:30%; } }
