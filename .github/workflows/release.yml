@@ -43,7 +43,15 @@ jobs:
           targets: ${{ matrix.target || (matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '') }}
 
       - name: install frontend dependencies
-        run: npm install
+        run: npm ci
+
+      - name: frontend tests
+        run: |
+          npm run test:callabo-ui
+          npm run test:recorder-ui
+
+      - name: Rust tests
+        run: cargo test --workspace --locked
 
       - uses: tauri-apps/tauri-action@v1
         env:
@@ -52,13 +60,19 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'MeetRec ${{ github.ref_name }}'
           releaseBody: |
-            Сборки Windows (x64 NSIS-установщик + x64/ARM64 portable .exe без установки) и macOS
-            (.dmg, Apple Silicon и Intel отдельно).
+            First release of quadr's MeetRec fork, based on the original MeetRec by Cypher Products.
 
-            macOS-сборка без подписи Apple Developer ID (`signingIdentity: "-"`,
-            ad-hoc) — при первом запуске Gatekeeper потребует явного разрешения:
-            правый клик по приложению → «Открыть», либо
-            `xattr -cr /Applications/MeetRec.app`.
+            - Record microphone and system audio as separate channels in one WAV, with independent mute controls.
+            - Upload recordings to Callabo from a visible branded action; distinguish upload progress from remote processing.
+            - Link recordings to Callabo titles and summaries, with cached results, refresh, and direct record links.
+            - Render Markdown summaries with headings, lists, tables and code. Collapsed cards show only an explicit one-line summary.
+            - Remove built-in transcription. Processing is available through manual Callabo uploads.
+            - Add Windows ARM64 portable builds and single-instance window restoration.
+            - Check this fork for future updates.
+
+            Downloads: Windows x64 installer or portable EXE; Windows ARM64 portable EXE; macOS Apple Silicon or Intel DMG.
+            Callabo PAT storage is currently implemented on Windows only. Uploads require a Callabo account with API permissions.
+            macOS builds are ad-hoc signed, without Apple Developer ID notarization; Gatekeeper may require explicit permission to open the app.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

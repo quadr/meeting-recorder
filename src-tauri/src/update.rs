@@ -20,7 +20,7 @@ use std::time::Duration;
 /// Откуда берётся последний релиз. Черновики и pre-release сюда не попадают —
 /// `latest` у GitHub это только полноценные релизы.
 pub const LATEST_RELEASE_URL: &str =
-    "https://api.github.com/repos/mmaximov97/meeting-recorder/releases/latest";
+    "https://api.github.com/repos/quadr/meeting-recorder/releases/latest";
 
 /// Как часто спрашивать, пока приложение живёт в трее. Сутки: релизы выходят
 /// не чаще, а лимит анонимных запросов к API — 60 в час на адрес.

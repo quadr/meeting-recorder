@@ -51,7 +51,7 @@ xattr -cr /Applications/MeetRec.app
 **Windows** — `MeetRec_x.y.z_x64-setup.exe` to install, or `MeetRec_vx.y.z_x64-portable.exe` to run without installing.
 For Windows ARM64, use `MeetRec_vx.y.z_arm64-portable.exe` (no installer).
 
-The app notices new releases on its own: once a day it asks GitHub and, if a newer version is out, shows a "Download / Later" banner in the window. Download opens the release page in your browser; installing is manual, same as the first time. Nothing but the version number is exchanged.
+The app checks this fork's GitHub releases once a day and shows a "Download / Later" banner when a newer version is available. Download opens the release page in your browser; installation is manual.
 
 ## Requirements
 

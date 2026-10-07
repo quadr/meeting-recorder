@@ -625,7 +625,7 @@ fn open_privacy_settings() -> Result<(), String> {
 /// одной ссылки в подвале окна незачем. Ссылка нужна не для красоты: человек,
 /// которому переслали голый `.exe`/`.dmg` без сопроводительного текста, иначе
 /// не узнает, откуда взять новую версию или куда написать про баг.
-const REPOSITORY_URL: &str = "https://github.com/mmaximov97/meeting-recorder";
+const REPOSITORY_URL: &str = "https://github.com/quadr/meeting-recorder";
 
 #[tauri::command]
 fn open_repository() -> Result<(), String> {
