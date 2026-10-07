@@ -25,6 +25,20 @@ const callaboUI = window.createCallaboUI({
 });
 function uploadToCallabo(recording) { return callaboUI.open(recording); }
 
+const muteUI = window.createMuteUI({
+  $, invoke, t: (key) => i18n.t(key), showError: (title, error) => показать_ошибку(title, error),
+  onChange: () => {
+    for (const source of ["mic", "system"]) {
+      if (!muteUI.muted(source)) continue;
+      пик[source].db = null;
+      обновить_канал(source, 0);
+      for (const bar of document.querySelectorAll(`[data-level="${source}"]`)) {
+        bar.style.setProperty("--level", "0%");
+      }
+    }
+  },
+});
+
 // Суффикс "(сейчас недоступен)" к имени устройства ставит не эта функция —
 // она его только снимает, обратно перед тем, как отправить имя в Rust.
 // Сравнение по обеим языковым версиям (i18n.tBoth), а не только по текущему
@@ -71,6 +85,7 @@ function слот(id, открыт) {
 // именно кнопка записи, и увидеть это нужно там, где на неё жмут.
 function показать_фатальную(причина) {
   фатально = true;
+  muteUI.setFatal();
   слот("s-fatal", true);
   $("fatal-text").textContent = i18n.t("error.fatal");
   // `причина` — либо ключ словаря (см. `status::DEAD` в Rust), либо, в редких
@@ -134,6 +149,7 @@ async function показать_предупреждение_устройств�
 // сейчас разрешение доедет только до следующего запуска. Гаснущий баннер здесь
 // соврал бы — исчез, а вторая дорожка так и не появилась бы.
 function показать_отсутствие_системного_звука(причина) {
+  muteUI.setUnavailable(Boolean(причина));
   const el = $("nosysaudio");
   слот("s-nosys", причина);
   if (!причина) {
@@ -292,12 +308,15 @@ function обновить_канал(канал, линейный) {
 }
 
 function применить_уровни(l) {
+  if (!muteUI.accepts(l.mute)) return;
+  muteUI.apply(l.mute);
   for (const канал of ["mic", "system"]) {
-    const уровень = `${уровень_в_проценты(l[канал])}%`;
+    const value = muteUI.muted(канал) ? 0 : l[канал];
+    const уровень = `${уровень_в_проценты(value)}%`;
     for (const заливка of document.querySelectorAll(`[data-level="${канал}"]`)) {
       заливка.style.setProperty("--level", уровень);
     }
-    обновить_канал(канал, l[канал]);
+    обновить_канал(канал, value);
   }
   // Полоски рисуются всегда — устаревшим не бывает само число. Устаревает
   // только сведение «идёт ли проверка»: событие, отправленное ДО того, как
@@ -623,6 +642,14 @@ let показанные = new Set();
 // Keep capture quality warnings and rename failures on the affected row.
 function беды_записи(запись, ошибка_имени) {
   const список = [];
+  if (запись.mic_muted || запись.system_muted) {
+    список.push({
+      значок: ЗНАЧКИ.микрофон_выкл,
+      заголовок: i18n.t("mute.usedTitle"),
+      текст: запись.mic_muted && запись.system_muted ? i18n.t("mute.usedBoth")
+        : запись.mic_muted ? i18n.t("mute.usedMic") : i18n.t("mute.usedSystem"),
+    });
+  }
   if (запись.mic || запись.system) {
     if (!запись.system) {
       список.push({
@@ -823,6 +850,8 @@ function подпись_строки(з, ключ) {
     з.mic,
     з.system,
     з.quiet_mic_db,
+    з.mic_muted,
+    з.system_muted,
     з.recording_now,
     з.callabo_workspaces,
     callaboUploads.get(ключ) ?? null,
@@ -1210,6 +1239,7 @@ function остановить_таймер() {
 let предыдущее_состояние = null;
 
 function применить_состояние(s) {
+  muteUI.setRecording(s === "recording");
   const было_записью = предыдущее_состояние === "recording";
   const стало_записью = s === "recording";
 
@@ -1306,6 +1336,7 @@ function обновить_подписи_состояния() {
 // что и на старте, а не запомненные заранее строки.
 async function обновить_после_смены_языка() {
   window.i18n.applyStatic();
+  muteUI.render();
   getCurrentWindow()
     .setTitle(i18n.t("app.windowMain"))
     .catch(() => {});
@@ -1320,6 +1351,7 @@ async function обновить_после_смены_языка() {
   обновить_подписи_состояния();
   try {
     const снимок = await invoke("get_state");
+    muteUI.apply(снимок.mute);
     if (снимок.fatal) показать_фатальную(снимок.fatal);
     показать_предупреждение_устройства(снимок.device_warning);
     показать_отложенность(Boolean(снимок.mic_deferred));
@@ -1754,6 +1786,7 @@ async function старт() {
   отрисовать_поддержку();
 
   await listen("state", (e) => применить_состояние(e.payload));
+  await listen("mute", (e) => muteUI.apply(e.payload));
   await listen("callabo-settings-warning", (e) => показать_ошибку(i18n.t("callabo.error"), e.payload));
   await listen("callabo-progress", (e) => {
     const key = ключ_записи(e.payload.folder, e.payload.base);
@@ -1779,6 +1812,7 @@ async function старт() {
   await listen("update-available", (e) => показать_обновление(e.payload));
   try {
     const снимок = await invoke("get_state");
+    muteUI.apply(снимок.mute);
     применить_состояние(снимок.state);
     if (снимок.fatal) показать_фатальную(снимок.fatal);
     показать_предупреждение_устройства(снимок.device_warning);

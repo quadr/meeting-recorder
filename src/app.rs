@@ -109,7 +109,7 @@ pub trait SinkFactory {
     /// не пишут вовсе — содержательный дефолт тихо начал бы класть реальные
     /// файлы в рабочий каталог на каждом прогоне `cargo test`. Единственная
     /// содержательная реализация — `WavSinks`.
-    fn write_meta(&self, _dir: &Path, _base: &str, _duration_sec: u32) {}
+    fn write_meta(&self, _dir: &Path, _base: &str, _duration_sec: u32, _muted: MuteState) {}
 }
 
 /// Что оркестратору нужно от захвата: взять микрофон, отпустить микрофон,
@@ -285,17 +285,22 @@ impl SinkFactory for WavSinks {
         ))
     }
 
-    /// Формат зафиксирован намеренно узко — `{"v":1,"duration_sec":N}` и ни
-    /// поля сверх: чем меньше здесь лежит, тем меньше поводов чинить формат
-    /// потом. `v` держит место для будущей несовместимой правки, хотя сегодня
-    /// не читается никем.
+    /// Optional mute flags distinguish deliberate silence from a quiet mic.
     ///
     /// Ошибка записи не поднимается наружу и не должна портить исход
     /// `close_sinks`: файл-спутник вспомогательный, а не часть контракта
     /// «запись состоялась». Не записался — список записей продолжит считать
     /// длительность по размеру WAV, как до этой задачи.
-    fn write_meta(&self, dir: &Path, base: &str, duration_sec: u32) {
-        let content = format!(r#"{{"v":1,"duration_sec":{duration_sec}}}"#);
+    fn write_meta(&self, dir: &Path, base: &str, duration_sec: u32, muted: MuteState) {
+        let extra = if muted.mic || muted.system {
+            format!(
+                r#", "mic_muted":{}, "system_muted":{}"#,
+                muted.mic, muted.system
+            )
+        } else {
+            String::new()
+        };
+        let content = format!(r#"{{"v":1,"duration_sec":{duration_sec}{extra}}}"#);
         if let Err(e) = std::fs::write(dir.join(format!("{base}.meta.json")), content) {
             log::warn!("не удалось записать {base}.meta.json: {e}");
         }
@@ -758,6 +763,24 @@ pub struct Levels {
     pub system: f32,
 }
 
+/// Recording-only mute; capture and call detection continue using raw input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MuteState {
+    pub mic: bool,
+    pub system: bool,
+}
+
+impl MuteState {
+    fn apply(self, mic: &mut [i16], system: &mut [i16]) {
+        if self.mic {
+            mic.fill(0);
+        }
+        if self.system {
+            system.fill(0);
+        }
+    }
+}
+
 /// Во сколько раз уровень падает за тик без сигнала. При тике 200 мс полоска
 /// опускается примерно за полсекунды — глазу видно движение, но не мерцание.
 const LEVEL_DECAY: f32 = 0.7;
@@ -775,6 +798,9 @@ fn peak(samples: &[i16]) -> f32 {
 }
 
 pub struct App {
+    mute: MuteState,
+    mute_used: MuteState,
+    mute_revision: u64,
     machine: SessionMachine,
     /// Корень записей. Конкретная папка считается из `started` — см. `month_dir`.
     root: PathBuf,
@@ -817,6 +843,64 @@ pub struct App {
 }
 
 impl App {
+    pub fn mute(&self) -> MuteState {
+        self.mute
+    }
+
+    pub fn mute_revision(&self) -> u64 {
+        self.mute_revision
+    }
+
+    pub fn recording_levels(&self) -> Levels {
+        Levels {
+            mic: if self.mute.mic { 0.0 } else { self.level_mic },
+            system: if self.mute.system {
+                0.0
+            } else {
+                self.level_sys
+            },
+        }
+    }
+
+    /// Drain queued audio while muted on BOTH edges. This conservatively
+    /// silences the pending chunk on mute and prevents its release on unmute.
+    /// Acknowledgement happens only after this boundary has been processed.
+    pub fn set_mute(&mut self, mic: bool, muted: bool) -> Res {
+        if !matches!(self.state(), State::Recording(_)) {
+            return Err(std::io::Error::other("Mute is only available while recording").into());
+        }
+        if !mic && !self.audio.has_system() {
+            return Err(std::io::Error::other("System audio is unavailable").into());
+        }
+        let old = if mic { self.mute.mic } else { self.mute.system };
+        if old == muted {
+            return Ok(());
+        }
+        if !muted {
+            self.pump_audio()?;
+        }
+        if mic {
+            self.mute.mic = muted;
+            self.mute_used.mic |= muted;
+        } else {
+            self.mute.system = muted;
+            self.mute_used.system |= muted;
+        }
+        self.mute_revision += 1;
+        if muted {
+            self.pump_audio()?;
+        }
+        Ok(())
+    }
+
+    fn reset_mute(&mut self) {
+        if self.mute != MuteState::default() {
+            self.mute_revision += 1;
+        }
+        self.mute = MuteState::default();
+        self.mute_used = MuteState::default();
+    }
+
     /// Микрофон здесь НЕ открывается. Потоки поднимаются только по детекту,
     /// ручному старту или явной проверке — см. `Action::StartRingBuffer`.
     #[cfg(target_os = "windows")]
@@ -914,6 +998,9 @@ impl App {
 
     fn with_backends(root: PathBuf, audio: Box<dyn AudioIo>, sinks: Box<dyn SinkFactory>) -> Self {
         Self {
+            mute: MuteState::default(),
+            mute_used: MuteState::default(),
+            mute_revision: 0,
             machine: SessionMachine::new(),
             root,
             ring_mic: RingBuffer::new(RING_CAPACITY),
@@ -1161,7 +1248,8 @@ impl App {
         // же именем, что и сами дорожки.
         let recording = self.current_recording.take();
         // Хвост, натёкший между последним pump_audio и стопом.
-        let (mic, sys) = self.drain_channels();
+        let (mut mic, mut sys) = self.drain_channels();
+        self.mute.apply(&mut mic, &mut sys);
         let mut first_err: Option<Box<dyn std::error::Error>> = None;
 
         if let Some(w) = self.sink_mic.as_mut() {
@@ -1199,10 +1287,11 @@ impl App {
             if let Some((_, base)) = &recording {
                 let dir = month_dir(&self.root, self.started);
                 let duration = elapsed_seconds(self.started, Local::now());
-                self.sinks.write_meta(&dir, base, duration);
+                self.sinks.write_meta(&dir, base, duration, self.mute_used);
             }
         }
 
+        self.reset_mute();
         match first_err {
             Some(e) => Err(e),
             None => Ok(()),
@@ -1211,7 +1300,7 @@ impl App {
 
     /// Прокачать накопленные семплы туда, куда велит текущее состояние.
     pub fn pump_audio(&mut self) -> Res {
-        let (mic, sys) = self.drain_channels();
+        let (mut mic, mut sys) = self.drain_channels();
         self.check_sys_watchdog(&sys);
         // Уровень считается всегда, когда что-то течёт: в записи он даровой
         // (данные и так проходят здесь), в проверке — единственный смысл.
@@ -1219,6 +1308,7 @@ impl App {
         // между словами.
         self.level_mic = peak(&mic).max(self.level_mic * LEVEL_DECAY);
         self.level_sys = peak(&sys).max(self.level_sys * LEVEL_DECAY);
+        self.mute.apply(&mut mic, &mut sys);
         match self.machine.state() {
             State::Armed => {
                 self.ring_mic.push_slice(&mic);
@@ -1432,6 +1522,159 @@ mod tests {
     use chrono::TimeZone;
     use std::cell::RefCell;
     use std::rc::Rc;
+
+    fn read_muted_wav(root: &Path, recording: &(String, String)) -> (u16, Vec<i16>) {
+        let path = root.join(&recording.0).join(format!("{}.wav", recording.1));
+        let mut reader = hound::WavReader::open(path).unwrap();
+        (
+            reader.spec().channels,
+            reader
+                .samples::<i16>()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+        )
+    }
+
+    #[test]
+    fn recording_mute_preserves_samples_timing_and_boundaries() {
+        let root = ScratchDir::new("recording-mute");
+        let chunks = vec![
+            (vec![], vec![]), // manual start discards old input
+            (vec![1, 2], vec![11, 12]),
+            (vec![3, 4], vec![13, 14]), // mute mic, including queued input
+            (vec![5], vec![15]),        // mute system
+            (vec![6, 7], vec![16, 17]), // both muted
+            (vec![8], vec![18]),        // queued input stays muted on unmute
+            (vec![9, 10], vec![19, 20]),
+            (vec![11], vec![21]), // unmute system
+            (vec![12], vec![22]),
+            (vec![13], vec![23]),         // mute mic again
+            (vec![14, 15], vec![24, 25]), // final tail must stay muted
+            (vec![], vec![]),
+            (vec![100], vec![200]), // next recording defaults to both on
+        ];
+        let mut app = стенд(&журнал(), Поломка::Нет, chunks);
+        app.root = root.to_path_buf();
+        app.sinks = Box::new(WavSinks);
+        assert!(app.set_mute(true, true).is_err());
+        app.on_event(Event::ManualStart, None).unwrap();
+        let recording = app.current_recording().unwrap();
+        app.pump_audio().unwrap();
+        app.set_mute(true, true).unwrap();
+        app.set_mute(false, true).unwrap();
+        app.pump_audio().unwrap();
+        assert_eq!(app.recording_levels(), Levels::default());
+        assert!(
+            app.levels().mic > 0.0 && app.levels().system > 0.0,
+            "call detection must keep receiving raw levels"
+        );
+        app.set_mute(true, false).unwrap();
+        app.pump_audio().unwrap();
+        app.set_mute(false, false).unwrap();
+        app.pump_audio().unwrap();
+        app.set_mute(true, true).unwrap();
+        let revision = app.mute_revision();
+        app.on_event(Event::ManualStop, None).unwrap();
+        assert_eq!(app.mute(), MuteState::default());
+        assert!(app.mute_revision() > revision);
+        let (channels, samples) = read_muted_wav(&root, &recording);
+        assert_eq!(channels, 2);
+        assert_eq!(samples.len(), 30, "muting must not drop frames");
+        assert_eq!(
+            samples.iter().step_by(2).copied().collect::<Vec<_>>(),
+            [1, 2, 0, 0, 0, 0, 0, 0, 9, 10, 11, 12, 0, 0, 0]
+        );
+        assert_eq!(
+            samples
+                .iter()
+                .skip(1)
+                .step_by(2)
+                .copied()
+                .collect::<Vec<_>>(),
+            [11, 12, 13, 14, 0, 0, 0, 0, 0, 0, 0, 22, 23, 24, 25]
+        );
+        let meta = std::fs::read_to_string(
+            root.join(&recording.0)
+                .join(format!("{}.meta.json", recording.1)),
+        )
+        .unwrap();
+        assert!(meta.contains("\"mic_muted\":true") && meta.contains("\"system_muted\":true"));
+        app.on_event(Event::ManualStart, None).unwrap();
+        let next = app.current_recording().unwrap();
+        app.pump_audio().unwrap();
+        app.on_event(Event::ManualStop, None).unwrap();
+        assert_eq!(read_muted_wav(&root, &next).1, [100, 200]);
+        let meta =
+            std::fs::read_to_string(root.join(&next.0).join(format!("{}.meta.json", next.1)))
+                .unwrap();
+        assert!(
+            !meta.contains("mic_muted"),
+            "mute history belongs to one recording"
+        );
+    }
+
+    #[test]
+    fn recording_mute_keeps_pre_roll_and_mutes_only_subsequent_audio() {
+        let root = ScratchDir::new("mute-pre-roll");
+        let mut app = стенд(
+            &журнал(),
+            Поломка::Нет,
+            vec![
+                (vec![1, 2], vec![11, 12]),
+                (vec![3, 4], vec![13, 14]),
+                (vec![5], vec![15]),
+            ],
+        );
+        app.root = root.to_path_buf();
+        app.sinks = Box::new(WavSinks);
+        app.on_event(Event::SessionAppeared, None).unwrap();
+        app.pump_audio().unwrap();
+        assert!(
+            app.set_mute(true, true).is_err(),
+            "no mute control before recording"
+        );
+        app.on_event(Event::UserConfirmed, None).unwrap();
+        let recording = app.current_recording().unwrap();
+        app.set_mute(true, true).unwrap();
+        app.on_event(Event::ManualStop, None).unwrap();
+        assert_eq!(
+            read_muted_wav(&root, &recording).1,
+            [1, 11, 2, 12, 0, 13, 0, 14, 0, 15]
+        );
+    }
+
+    #[test]
+    fn recording_mute_supports_mic_only_capture() {
+        let root = ScratchDir::new("mute-mono");
+        let mut app = стенд_с_системой(
+            &журнал(),
+            Поломка::Нет,
+            vec![
+                (vec![], vec![]),
+                (vec![100, 200], vec![]),
+                (vec![300], vec![]),
+            ],
+            false,
+        );
+        app.root = root.to_path_buf();
+        app.sinks = Box::new(WavSinks);
+        app.on_event(Event::ManualStart, None).unwrap();
+        let recording = app.current_recording().unwrap();
+        assert!(app.set_mute(false, true).is_err());
+        app.set_mute(true, true).unwrap();
+        app.on_event(Event::ManualStop, None).unwrap();
+        assert_eq!(read_muted_wav(&root, &recording), (1, vec![0, 0, 0]));
+    }
+
+    #[test]
+    fn recording_mute_resets_even_when_finalization_fails() {
+        let mut app = стенд(&журнал(), Поломка::НеФинализируется, vec![]);
+        app.on_event(Event::ManualStart, None).unwrap();
+        app.set_mute(true, true).unwrap();
+        assert!(app.on_event(Event::ManualStop, None).is_err());
+        assert_eq!(app.mute(), MuteState::default());
+        assert_eq!(app.state(), State::Idle);
+    }
 
     #[test]
     fn single_wav_preserves_channels_across_unequal_capture_chunks() {
@@ -1731,7 +1974,7 @@ mod tests {
         /// Реального файла не пишет — только фиксирует вызов в журнале, тем же
         /// приёмом, что и `create`/`Sink::write`, чтобы тесты `App` проверяли
         /// факт и содержимое вызова, не трогая диск.
-        fn write_meta(&self, _dir: &Path, base: &str, duration_sec: u32) {
+        fn write_meta(&self, _dir: &Path, base: &str, duration_sec: u32, _muted: MuteState) {
             self.журнал
                 .borrow_mut()
                 .push(format!("meta:{base}:{duration_sec}"));

@@ -68,7 +68,8 @@
 
   // ── Снимок состояния, который отдаёт get_state ──────────────────────────
   const снимок = {
-    state: S === "recording" ? "recording" : S === "armed" ? "armed" : "idle",
+    mute: { mic: S === "muted", system: false, revision: 0 },
+    state: ["recording", "muted"].includes(S) ? "recording" : S === "armed" ? "armed" : "idle",
     fatal: S === "fatal" ? "детектор не поднялся: no such device" : null,
     device_warning: S === "devwarn" ? "{0.0.1.00000000}.{9f1c…}" : null,
     mic_deferred: S === "deferred",
@@ -81,10 +82,11 @@
     // 0,28 линейного пика — это -11 дБFS, то есть обычная речь на здоровом
     // уровне записи. На метре она даёт ~80%: см. канон 2.9, почему подсказка
     // говорит «до конца зелёного», а не «до середины».
-    emit("levels", { mic: ш(0.28), system: ш(0.19), monitoring: true });
+    emit("levels", { mic: снимок.mute.mic ? 0 : ш(0.28), system: снимок.mute.system ? 0 : ш(0.19), monitoring: true, mute: { ...снимок.mute } });
   };
 
   const команды = {
+    callabo_auth_status: () => пауза(0, false),
     get_state: () => {
       // В приложении `ask` уходит раньше смены состояния — повторяем порядок,
       // иначе строка взвода не узнает, кого услышали.
@@ -134,6 +136,13 @@
     local_model_download: () => пауза(0, null),
     local_model_remove: () => пауза(0, null),
 
+    set_mute: async ({ source, muted }) => {
+      if (снимок.state !== "recording") throw new Error("Not recording");
+      await пауза(120);
+      снимок.mute = { ...снимок.mute, [source]: muted, revision: снимок.mute.revision + 1 };
+      emit("mute", { ...снимок.mute });
+      return { ...снимок.mute };
+    },
     set_monitor: ({ on }) => {
       clearInterval(метроном);
       if (on) метроном = setInterval(метр, 100);
@@ -143,6 +152,8 @@
     send_event: ({ name }) => {
       if (name === "toggle") {
         снимок.state = снимок.state === "recording" ? "idle" : "recording";
+        снимок.mute = { mic: false, system: false, revision: снимок.mute.revision + 1 };
+        emit("mute", { ...снимок.mute });
         emit("state", снимок.state);
         if (снимок.state === "recording") метроном = setInterval(метр, 100);
         else clearInterval(метроном);
@@ -215,7 +226,7 @@
 
   addEventListener("load", () =>
     setTimeout(() => {
-      if (S === "recording") метроном = setInterval(метр, 100);
+      if (["recording", "muted"].includes(S)) метроном = setInterval(метр, 100);
       if (S === "recstart") $("rec-btn")?.click();
 
       const первая = { folder: СПИСОК[0].folder, base: СПИСОК[0].name };

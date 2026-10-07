@@ -42,6 +42,7 @@ pub const DEAD: &str = "permission.streamDead";
 #[derive(Serialize, Clone, PartialEq, Eq, Debug, Default)]
 pub struct Snapshot {
     pub state: UiState,
+    pub mute: MuteSnapshot,
     /// `Some` — записи не будет до перезапуска. Не «ошибка на этом тике»
     /// (`emit("error")`), а «дальше ничего не работает».
     pub fatal: Option<String>,
@@ -76,6 +77,23 @@ pub struct Snapshot {
     /// из найденных на диске записей ещё растёт, — иначе `delete_recording`
     /// мог бы тронуть файл посреди записи.
     pub current_recording: Option<CurrentRecording>,
+}
+
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct MuteSnapshot {
+    pub mic: bool,
+    pub system: bool,
+    pub revision: u64,
+}
+
+impl MuteSnapshot {
+    pub fn of(app: &meeting_recorder::app::App) -> Self {
+        Self {
+            mic: app.mute().mic,
+            system: app.mute().system,
+            revision: app.mute_revision(),
+        }
+    }
 }
 
 /// Какая запись пишется прямо сейчас.
@@ -116,6 +134,15 @@ impl Status {
 
     pub fn snapshot(&self) -> Snapshot {
         self.lock().clone()
+    }
+
+    pub fn set_mute(&self, mute: MuteSnapshot) -> bool {
+        let mut g = self.lock();
+        if g.mute == mute {
+            return false;
+        }
+        g.mute = mute;
+        true
     }
 
     /// Записать состояние. `true` — оно изменилось, то есть есть о чём сообщать
@@ -298,6 +325,7 @@ mod tests {
             s.snapshot(),
             Snapshot {
                 state: UiState::Idle,
+                mute: MuteSnapshot::default(),
                 fatal: None,
                 device_warning: None,
                 mic_deferred: false,

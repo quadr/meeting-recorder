@@ -161,6 +161,8 @@ struct Recording {
     /// Заполняется в `list_recordings`, отдельно от группировки — та чистая и
     /// файлов не читает.
     quiet_mic_db: Option<f32>,
+    mic_muted: bool,
+    system_muted: bool,
     /// `true` — на эту запись прямо сейчас пишутся дорожки. Заполняется в
     /// `list_recordings` после группировки, сверкой со `Status::current_recording`
     /// — та же причина, что у `quiet_mic_db`: группировка чистая и файлов не
@@ -234,14 +236,33 @@ fn duration_sec(track_bytes: u64) -> u32 {
 /// Файл-спутник `<основа>.meta.json`, который пишет `close_sinks` в ядре
 /// (`src/app.rs::SinkFactory::write_meta`) в момент финализации дорожек.
 ///
-/// Только `duration_sec` разбирается — `v` в поле не заведён специально:
-/// формат сегодня один-единственный, и место под будущую несовместимую
-/// правку не то же самое, что код, который её уже умеет читать. Незнакомые
-/// поля `serde` тихо игнорирует сам по себе.
+/// Mute flags are optional so older recordings keep their original behavior.
 #[derive(Deserialize)]
 struct RecordingMeta {
     #[serde(default)]
     duration_sec: u32,
+    #[serde(default)]
+    mic_muted: bool,
+    #[serde(default)]
+    system_muted: bool,
+}
+
+#[cfg(test)]
+mod mute_metadata_tests {
+    use super::RecordingMeta;
+
+    #[test]
+    fn old_metadata_and_optional_mute_flags_are_compatible() {
+        let old: RecordingMeta = serde_json::from_str(r#"{"v":1,"duration_sec":42}"#).unwrap();
+        assert_eq!(old.duration_sec, 42);
+        assert!(!old.mic_muted && !old.system_muted);
+        let muted: RecordingMeta = serde_json::from_str(
+            r#"{"v":1,"duration_sec":42,"mic_muted":true,"system_muted":false}"#,
+        )
+        .unwrap();
+        assert_eq!(muted.duration_sec, 42);
+        assert!(muted.mic_muted && !muted.system_muted);
+    }
 }
 
 /// Длительность из файла-спутника, если он лежит рядом и читается.
@@ -252,10 +273,12 @@ struct RecordingMeta {
 /// записей. Битый файл-спутник — это файл, у которого повезло меньше, чем
 /// дорожкам, а не повод перестать показывать запись целиком.
 fn read_duration_meta(path: &Path) -> Option<u32> {
+    read_recording_meta(path).map(|m| m.duration_sec)
+}
+
+fn read_recording_meta(path: &Path) -> Option<RecordingMeta> {
     let content = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str::<RecordingMeta>(&content)
-        .ok()
-        .map(|m| m.duration_sec)
+    serde_json::from_str(&content).ok()
 }
 
 /// Group combined WAVs and legacy tracks by (base, folder), newest first.
@@ -291,6 +314,8 @@ fn group_recordings(
             size: 0,
             duration_sec: 0,
             quiet_mic_db: None,
+            mic_muted: false,
+            system_muted: false,
             recording_now: false,
             callabo_workspaces: vec![],
         });
@@ -432,6 +457,10 @@ fn list_recordings(
         };
         let combined_path = dir.join(format!("{}.wav", r.name));
         r.callabo_workspaces = callabo::completed_workspaces(&dir, &r.name);
+        if let Some(meta) = read_recording_meta(&dir.join(format!("{}.meta.json", r.name))) {
+            r.mic_muted = meta.mic_muted;
+            r.system_muted = meta.system_muted;
+        }
         if let Ok(reader) = hound::WavReader::open(&combined_path) {
             r.mic = true;
             r.system = reader.spec().channels >= 2;
@@ -447,7 +476,7 @@ fn list_recordings(
             .is_some_and(|c| Some(c.folder.as_str()) == r.folder.as_deref() && c.base == r.name);
         // Пометка имеет смысл только для полной пары: одинокая дорожка уже
         // помечена как неполная, и второе предупреждение о ней ничего не добавит.
-        if !(r.mic && r.system) {
+        if !(r.mic && r.system) || r.mic_muted || r.recording_now {
             continue;
         }
         // Только дорожка владельца: системная в решении не участвует — её
@@ -764,6 +793,27 @@ fn set_monitor(
     Ok(epoch.0.load(Ordering::SeqCst) + 1)
 }
 
+#[tauri::command]
+async fn set_mute(
+    source: String,
+    muted: bool,
+    state: tauri::State<'_, Cmd>,
+    app: AppHandle,
+) -> Result<status::MuteSnapshot, String> {
+    let mic = match source.as_str() {
+        "mic" => true,
+        "system" => false,
+        _ => return Err("Unknown audio source".into()),
+    };
+    let (reply, receive) = tokio::sync::oneshot::channel();
+    state
+        .send(Ctl::SetMute { mic, muted, reply })
+        .inspect_err(|_| status::fatal(&app, status::DEAD.to_string()))?;
+    receive
+        .await
+        .map_err(|_| "Audio thread stopped before applying mute".to_string())?
+}
+
 fn main() {
     let (tx, rx) = channel::<Ctl>();
     let tray_tx = tx.clone();
@@ -824,6 +874,7 @@ fn main() {
             set_language,
             set_theme,
             set_monitor,
+            set_mute,
             rename_recording,
             delete_recording,
             open_recording_folder,
@@ -958,6 +1009,8 @@ mod tests {
             size,
             duration_sec: 0,
             quiet_mic_db: None,
+            mic_muted: false,
+            system_muted: false,
             recording_now: false,
             callabo_workspaces: vec![],
         }

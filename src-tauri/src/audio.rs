@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::status::{self, Status};
+use crate::status::{self, MuteSnapshot, Status};
 use crate::tray;
 
 /// Шаг цикла. В 10 раз чаще детекта — ради отзывчивости на команды из UI и
@@ -77,6 +77,11 @@ pub enum Ctl {
     /// Включить/выключить проверку микрофона. Как и `SetMicDevice`, это не
     /// событие машины: состояние записи от проверки не меняется.
     Monitor(bool),
+    SetMute {
+        mic: bool,
+        muted: bool,
+        reply: tokio::sync::oneshot::Sender<Result<MuteSnapshot, String>>,
+    },
     /// Выход. Обязан пройти через машину: см. [`run`].
     Shutdown,
 }
@@ -470,6 +475,10 @@ fn hide_ask_popup(handle: &AppHandle) {
 /// повторение безвредно, а вот обратный порядок дал бы окно, в котором событие
 /// уже ушло, а спросивший получил бы старое.
 fn sync(handle: &AppHandle, app: &App, status: &Status) {
+    let mute = MuteSnapshot::of(app);
+    if status.set_mute(mute) {
+        let _ = handle.emit("mute", mute);
+    }
     let now = UiState::of(app.state());
     if status.set_state(now) {
         let _ = handle.emit("state", now);
@@ -561,6 +570,7 @@ fn ctl_to_event(c: &Ctl, s: State) -> Option<(Event, bool)> {
         // Тот же случай, что у `SetMicDevice`: `drain_ctl` перехватывает
         // `Monitor` раньше, чем дело доходит сюда.
         Ctl::Monitor(_) => None,
+        Ctl::SetMute { .. } => None,
     }
 }
 
@@ -595,6 +605,14 @@ fn drain_ctl(
     mut on_error: impl FnMut(String),
 ) -> bool {
     for c in rx.try_iter() {
+        if let Ctl::SetMute { mic, muted, reply } = c {
+            let result = app
+                .set_mute(mic, muted)
+                .map(|()| MuteSnapshot::of(app))
+                .map_err(|e| e.to_string());
+            let _ = reply.send(result);
+            continue;
+        }
         // Не события машины: состояние записи от них не меняется.
         if let Ctl::SetMicDevice(choice) = c {
             app.set_mic_device(choice);
@@ -1069,7 +1087,7 @@ pub fn run(
         // на котором проверка ТОЛЬКО ЧТО выключилась — иначе окно застревает
         // в «идёт проверка» навсегда. См. докблок `should_emit_levels`.
         if should_emit_levels(was_monitoring, app.is_monitoring(), app.state()) {
-            let l = levels_to_emit(app.levels(), app.is_monitoring(), app.state());
+            let l = levels_to_emit(app.recording_levels(), app.is_monitoring(), app.state());
             let _ = handle.emit(
                 "levels",
                 serde_json::json!({
@@ -1077,6 +1095,7 @@ pub fn run(
                     "system": l.system,
                     "monitoring": app.is_monitoring(),
                     "epoch": monitor_epoch.load(Ordering::SeqCst),
+                    "mute": MuteSnapshot::of(&app),
                 }),
             );
         }
@@ -1235,6 +1254,62 @@ mod tests {
 
     fn app() -> Стенд {
         app_с_захватом(Box::new(ФейкЗахват::default()))
+    }
+
+    #[test]
+    fn mute_commands_acknowledge_applied_state_without_changing_recording() {
+        let mut app = app();
+        app.on_event(Event::ManualStart, None).unwrap();
+        let original_state = app.state();
+        let (tx, rx) = channel();
+        let (reply, mut result) = tokio::sync::oneshot::channel();
+        tx.send(Ctl::SetMute {
+            mic: true,
+            muted: true,
+            reply,
+        })
+        .unwrap();
+        assert!(
+            result.try_recv().is_err(),
+            "enqueueing is not acknowledgement"
+        );
+        let quit = drain_ctl(
+            &mut app,
+            &rx,
+            None,
+            &AtomicU64::new(0),
+            |_, _, _| panic!("mute must not feed session events"),
+            |_| {},
+        );
+        assert!(!quit);
+        let muted = result.try_recv().unwrap().unwrap();
+        assert!(muted.mic);
+        assert!(!muted.system);
+        assert_eq!(muted, MuteSnapshot::of(&app));
+        assert_eq!(app.state(), original_state);
+        app.on_event(Event::ManualStop, None).unwrap();
+        assert!(!MuteSnapshot::of(&app).mic);
+        assert!(MuteSnapshot::of(&app).revision > muted.revision);
+
+        let (reply, mut result) = tokio::sync::oneshot::channel();
+        tx.send(Ctl::SetMute {
+            mic: true,
+            muted: true,
+            reply,
+        })
+        .unwrap();
+        drain_ctl(
+            &mut app,
+            &rx,
+            None,
+            &AtomicU64::new(0),
+            |_, _, _| panic!(),
+            |_| {},
+        );
+        assert!(
+            result.try_recv().unwrap().is_err(),
+            "idle cannot silently accept mute"
+        );
     }
 
     fn session(pid: u32) -> MicSession {

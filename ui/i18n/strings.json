@@ -749,5 +749,43 @@
       "ru": "Тёмная",
       "en": "Dark"
     }
+  },
+  "mute": {
+    "mic": {
+      "ru": "Выключить микрофон в записи",
+      "en": "Mute microphone in this recording"
+    },
+    "system": {
+      "ru": "Выключить системный звук в записи",
+      "en": "Mute system audio in this recording"
+    },
+    "on": {
+      "ru": "Включён",
+      "en": "On"
+    },
+    "off": {
+      "ru": "Выключен",
+      "en": "Muted"
+    },
+    "error": {
+      "ru": "Не удалось переключить звук в записи.",
+      "en": "Could not change recording mute."
+    },
+    "usedTitle": {
+      "ru": "Звук выключался во время записи",
+      "en": "Audio muted during recording"
+    },
+    "usedMic": {
+      "ru": "Микрофон был выключен на части или всей записи.",
+      "en": "The microphone was muted for part or all of this recording."
+    },
+    "usedSystem": {
+      "ru": "Системный звук был выключен на части или всей записи.",
+      "en": "System audio was muted for part or all of this recording."
+    },
+    "usedBoth": {
+      "ru": "Оба источника выключались во время записи. Эти участки сохранены как тишина.",
+      "en": "Both sources were muted during this recording. Muted sections contain silence."
+    }
   }
 }

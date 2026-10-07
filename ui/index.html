@@ -504,14 +504,27 @@
         flex: 1;
         min-width: 0;
       }
-      .recording .mtr .ic {
-        width: 16px;
-        flex: none;
-        color: var(--muted);
+      .mute-toggle {
         display: grid;
         place-items: center;
-        cursor: help;
+        flex: 0 0 32px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--fg);
+        cursor: pointer;
       }
+      .mute-toggle svg { width: 16px; height: 16px; }
+      .mute-toggle .mute-slash { display: none; }
+      .mute-toggle[aria-pressed="true"] { color: var(--error); border-color: currentColor; }
+      .mute-toggle[aria-pressed="true"] .mute-slash { display: block; }
+      .mute-toggle:hover:not(:disabled) { background: var(--hover); }
+      .mute-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .mute-toggle:disabled { cursor: default; opacity: 0.55; }
+
 
       /* ── Метр уровня ──────────────────────────────────────────────────────
          Сегментированная полоска в духе микшера: маска режет её на штрихи
@@ -1640,11 +1653,11 @@
                   </button>
                 </div>
                 <div class="mtr">
-                  <span class="ic" data-i18n-attr="title:levels.mic" title="Your microphone"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19v3" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><rect x="9" y="2" width="6" height="13" rx="3" /></svg></span>
+                  <button type="button" class="mute-toggle" id="mute-mic" aria-pressed="false" disabled><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19v3" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><rect x="9" y="2" width="6" height="13" rx="3" /><path class="mute-slash" d="M3 3l18 18" /></svg></button>
                   <span class="disc sm"><span class="t"></span><span class="f" data-level="mic"></span><b data-peak="mic"></b></span>
                 </div>
                 <div class="mtr">
-                  <span class="ic" data-i18n-attr="title:levels.system" title="System audio — what you hear from the others"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" /><path d="M16 9a5 5 0 0 1 0 6" /><path d="M19.364 18.364a9 9 0 0 0 0-12.728" /></svg></span>
+                  <button type="button" class="mute-toggle" id="mute-system" aria-pressed="false" disabled><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" /><path d="M16 9a5 5 0 0 1 0 6" /><path d="M19.364 18.364a9 9 0 0 0 0-12.728" /><path class="mute-slash" d="M3 3l18 18" /></svg></button>
                   <span class="disc sm"><span class="t"></span><span class="f" data-level="system"></span><b data-peak="system"></b></span>
                 </div>
               </div>
@@ -1950,6 +1963,7 @@
     <script src="theme.js"></script>
     <script src="i18n.js"></script>
     <script src="callabo.js"></script>
+    <script src="mute.js"></script>
     <script src="main.js"></script>
   </body>
 </html>
