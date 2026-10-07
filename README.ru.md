@@ -16,6 +16,11 @@
   <a href="README.md">English</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/quadr/meeting-recorder">Репозиторий форка</a> ·
+  <a href="https://github.com/quadr/meeting-recorder/releases">Скачать</a>
+</p>
+
 ---
 
 MeetRec замечает, что начался звонок, предлагает записать и пишет две отдельные дорожки: ваш микрофон и звук системы. Потом запись можно превратить в текст с разделением, кто говорил.
@@ -37,7 +42,7 @@ MeetRec замечает, что начался звонок, предлагае
 
 ## Установка
 
-Свежая сборка лежит в [релизах](../../releases).
+Свежая сборка лежит в [релизах этого форка](https://github.com/quadr/meeting-recorder/releases).
 
 **macOS** — `MeetRec_x.y.z_aarch64.dmg` для Apple Silicon, `MeetRec_x.y.z_x64.dmg` для Intel.
 
@@ -101,7 +106,7 @@ xattr -cr /Applications/MeetRec.app
 Нужны Rust и Node.
 
 ```sh
-git clone https://github.com/mmaximov97/meeting-recorder
+git clone https://github.com/quadr/meeting-recorder
 cd meeting-recorder
 cargo test --workspace
 npm install

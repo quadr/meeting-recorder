@@ -16,6 +16,11 @@
   <a href="README.ru.md">Русская версия</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/quadr/meeting-recorder">Source repository</a> ·
+  <a href="https://github.com/quadr/meeting-recorder/releases">Downloads</a>
+</p>
+
 ---
 
 MeetRec notices when a call starts, offers to record it, and writes two separate tracks: your microphone and the system audio. Afterwards it can turn the recording into text with the speakers kept apart.
@@ -38,7 +43,7 @@ Most meeting recorders put a bot into the call and keep the files on their serve
 
 ## Install
 
-Download the latest build from [Releases](../../releases).
+Download the latest build from [this fork's Releases](https://github.com/quadr/meeting-recorder/releases).
 
 **macOS** — `MeetRec_x.y.z_aarch64.dmg` for Apple Silicon, `MeetRec_x.y.z_x64.dmg` for Intel.
 
@@ -109,7 +114,7 @@ This integration follows the v1 upload protocol used by the [official Callabo CL
 Requires Rust and Node.
 
 ```sh
-git clone https://github.com/mmaximov97/meeting-recorder
+git clone https://github.com/quadr/meeting-recorder
 cd meeting-recorder
 cargo test --workspace
 npm install
