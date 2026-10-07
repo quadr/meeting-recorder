@@ -7,12 +7,15 @@
 use meeting_recorder::storage::rename_tail;
 use std::path::{Path, PathBuf};
 
-/// Что переезжает вместе с записью: обе дорожки и папка транскрипта.
-/// Всё, из чего состоит запись на диске. `.meta.json` — файл-спутник с
-/// длительностью встречи; без него после переименования длительность
-/// вернулась бы к расчёту по размеру дорожки, а у вычищенной автоочисткой
-/// записи пропала бы совсем.
-const SUFFIXES: [&str; 6] = [".wav", ".mic.wav", ".system.wav", ".transcript", ".meta.json", ".callabo.json"];
+/// Audio and metadata move together to preserve duration and Callabo history.
+/// Legacy transcript folders remain at their original location.
+const SUFFIXES: [&str; 5] = [
+    ".wav",
+    ".mic.wav",
+    ".system.wav",
+    ".meta.json",
+    ".callabo.json",
+];
 
 /// Переименовывает запись целиком. Возвращает новую основу имени.
 ///
@@ -24,8 +27,9 @@ const SUFFIXES: [&str; 6] = [".wav", ".mic.wav", ".system.wav", ".transcript", "
 /// Переименование не меняет месячную папку: дата в префиксе неизменяема, а
 /// именно она эту папку и задаёт.
 pub fn rename_recording(dir: &Path, base: &str, new_tail: &str) -> Result<String, String> {
-    let new_base = rename_tail(base, new_tail)
-        .ok_or_else(|| format!("не удалось построить имя из «{new_tail}»: пустое или имя записи чужое"))?;
+    let new_base = rename_tail(base, new_tail).ok_or_else(|| {
+        format!("не удалось построить имя из «{new_tail}»: пустое или имя записи чужое")
+    })?;
     if new_base == base {
         return Ok(new_base);
     }
@@ -33,7 +37,12 @@ pub fn rename_recording(dir: &Path, base: &str, new_tail: &str) -> Result<String
     // Что существует и куда поедет.
     let pairs: Vec<(PathBuf, PathBuf)> = SUFFIXES
         .iter()
-        .map(|s| (dir.join(format!("{base}{s}")), dir.join(format!("{new_base}{s}"))))
+        .map(|s| {
+            (
+                dir.join(format!("{base}{s}")),
+                dir.join(format!("{new_base}{s}")),
+            )
+        })
         .filter(|(from, _)| from.exists())
         .collect();
 
@@ -113,8 +122,7 @@ mod tests {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
-            let path =
-                std::env::temp_dir().join(format!("mr-rename-{tag}-{pid}-{nanos}-{n}"));
+            let path = std::env::temp_dir().join(format!("mr-rename-{tag}-{pid}-{nanos}-{n}"));
             std::fs::create_dir_all(&path).expect("создать временный каталог");
             Self(path)
         }
@@ -143,7 +151,8 @@ mod tests {
         файл(&dir, "2026-07-30_13-03_chrome.mic.wav");
         файл(&dir, "2026-07-30_13-03_chrome.system.wav");
 
-        let новое = rename_recording(&dir, "2026-07-30_13-03_chrome", "артем").expect("переименование");
+        let новое =
+            rename_recording(&dir, "2026-07-30_13-03_chrome", "артем").expect("переименование");
 
         assert_eq!(новое, "2026-07-30_13-03_артем");
         assert!(dir.join("2026-07-30_13-03_артем.mic.wav").exists());
@@ -162,10 +171,8 @@ mod tests {
         assert!(!dir.join("2026-07-30_13-03_chrome.wav").exists());
     }
 
-    /// Транскрипт кладётся рядом с записью внешним скриптом расшифровки. Оставить
-    /// его со старым именем — значит развязать транскрипт и запись.
     #[test]
-    fn папка_транскрипта_едет_вместе_с_записью() {
+    fn legacy_transcript_is_left_untouched_when_audio_is_renamed() {
         let dir = ScratchDir::new("transcript");
         файл(&dir, "2026-07-30_13-03_chrome.mic.wav");
         файл(&dir, "2026-07-30_13-03_chrome.system.wav");
@@ -178,7 +185,7 @@ mod tests {
         rename_recording(&dir, "2026-07-30_13-03_chrome", "артем").expect("переименование");
 
         assert!(dir
-            .join("2026-07-30_13-03_артем.transcript")
+            .join("2026-07-30_13-03_chrome.transcript")
             .join("выжимка.md")
             .exists());
     }

@@ -39,7 +39,7 @@ cargo test --workspace
 
 `--workspace` matters. The project is two crates, the core in `src/` and the GUI in `src-tauri/`, and without it you only run half the suite. Tests live next to the code they cover, in `#[cfg(test)]` modules, not in a separate directory.
 
-There are no JavaScript tests.
+Callabo UI tests run with `npm run test:callabo-ui`. Transcript-removal regression tests run with `npm run test:recorder-ui`.
 
 ## Building
 

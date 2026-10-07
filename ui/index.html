@@ -251,12 +251,6 @@
         opacity: 0.5;
         cursor: default;
       }
-
-      /* ── Кнопка-действие в настройках ────────────────────────────────────
-         Отличается от выпадашки/поля рядом: заливка вместо контура, нет
-         стрелки, другой радиус. «Проверить» у микрофона и «Скачать модель» у
-         локальной расшифровки — обе одинаково заметны, ни одна не приглушена
-         под текстовую ссылку. */
       button.btn {
         font: inherit;
         font-size: 13px;
@@ -681,7 +675,6 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      /* Мета-строка: длительность, вес файла, состояние расшифровки. */
       .sub {
         font-size: 12px;
         color: var(--muted);
@@ -690,9 +683,7 @@
         white-space: nowrap;
         margin-top: 1px;
       }
-      /* Под наведение уходит только нейтральное — вес файла и отметка о готовой
-         расшифровке. Всё, из-за чего запись получилась хуже, живёт в карточке
-         и видно без мыши. */
+      /* File size is secondary; recording warnings stay visible. */
       .sub .more {
         opacity: 0;
         transition: opacity 0.12s;
@@ -776,11 +767,7 @@
         outline-offset: 1px;
       }
 
-      /* Отступ у кнопки/полоски модели под текстом её состояния — тот же шаг,
-         что у `.saved` под полем чуть выше. */
-      .local-model-action {
-        margin-top: var(--s2);
-      }
+
       /* Полоска прогресса неопределённая: сервер не сообщает процент, и врать
          процентом нельзя. */
       .prog {
@@ -828,10 +815,7 @@
         gap: 9px;
         align-items: flex-start;
       }
-      /* Бед у записи может быть две — звук записался плохо И расшифровка не
-         доехала. Тогда плашки встают одна под другой, разделённые той же
-         тонкой линией, а скругление достаётся только нижней: радиус карточки
-         минус толщина рамки, иначе плашка выглядывает из-под угла. */
+      /* Round only the last note to match the recording card. */
       .rec.card .note:last-child {
         border-radius: 0 0 7px 7px;
       }
@@ -1229,101 +1213,6 @@
         pointer-events: none;
         color: var(--muted);
       }
-      /* Значок-вопросик рядом с выпадашкой «где расшифровывать» — тот же
-         приём, что `.ic` у подписей уровней записи (mic/system): узкая
-         фиксированная колонка справа от растущего поля, курсор `help`
-         подсказывает, что тут есть что прочитать по наведению. */
-      .row.mode .ic {
-        width: 16px;
-        flex: none;
-        color: var(--muted);
-        display: grid;
-        place-items: center;
-        cursor: help;
-        transition: color 0.12s ease;
-      }
-      .row.mode .ic:hover,
-      .row.mode .ic:focus-visible {
-        color: var(--fg);
-      }
-      .row.mode .ic:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 2px;
-        border-radius: 3px;
-      }
-
-      /* ── Свой тултип у значка-вопросика ───────────────────────────────────
-         Заменяет системный `title`: тот появляется с задержкой и выглядит
-         чужим. Один общий пузырь на всё окно (пока в приложении один такой
-         значок) — лежит в конце <body>, а не рядом со значком: тело настроек
-         прокручивается, и пузырь внутри строки обрезался бы прокручиваемой
-         областью. Координаты и разворот (вверх/вниз) считает JS через
-         `getBoundingClientRect` — см. `позиционировать_подсказку` в main.js. */
-      .tip-bub {
-        position: fixed;
-        width: 262px;
-        padding: 9px 11px;
-        border-radius: var(--r-md);
-        background: var(--card);
-        color: var(--fg);
-        border: 1px solid var(--line-strong);
-        box-shadow: var(--shadow-menu);
-        font-size: 12px;
-        line-height: 1.5;
-        text-align: left;
-        z-index: 50;
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(3px);
-        pointer-events: none;
-        transition:
-          opacity 0.13s ease,
-          transform 0.13s ease,
-          visibility 0s 0.13s;
-      }
-      .tip-bub.open {
-        opacity: 1;
-        visibility: visible;
-        transform: none;
-        transition:
-          opacity 0.13s ease,
-          transform 0.13s ease,
-          visibility 0s;
-      }
-      .tip-bub .tt-second {
-        margin-top: 10px;
-      }
-      .tip-bub .tt-title {
-        display: block;
-        font-weight: 600;
-        margin-bottom: 3px;
-      }
-      /* `local.noDiarization` — отдельный приглушённый абзац под основным
-         текстом подсказки, тем же приёмом, что `.hint` под полем. */
-      .tip-bub .tt-note {
-        display: block;
-        margin-top: 7px;
-        color: var(--muted);
-      }
-      /* Стрелка меняет сторону вместе с разворотом пузыря: сверху вниз, когда
-         над значком не хватило места (см. `.below` — ставит JS). Горизонтальное
-         положение стрелки — переменная `--arrow-left`, тоже от JS: пузырь
-         может быть сдвинут от центра значка к краю окна. */
-      .tip-bub::after {
-        content: "";
-        position: absolute;
-        left: var(--arrow-left, 50%);
-        margin-left: -5px;
-        border: 5px solid transparent;
-      }
-      .tip-bub:not(.below)::after {
-        top: 100%;
-        border-top-color: var(--card);
-      }
-      .tip-bub.below::after {
-        bottom: 100%;
-        border-bottom-color: var(--card);
-      }
       select,
       input[type="text"],
       input[type="password"] {
@@ -1334,11 +1223,6 @@
         outline: 2px solid var(--accent);
         outline-offset: 1px;
       }
-      /* Общее гашение для полей/выпадашек, которые сейчас недоступны, но не
-         спрятаны совсем (например поле переименования записи во время
-         сохранения) — тот же приём, что `button:disabled` чуть выше по
-         файлу. Адрес и ключ шлюза в локальном режиме этим не пользуются: они
-         в этом режиме скрываются целиком, см. `#stt-url-row`/`#stt-key-row`. */
       select:disabled,
       input:disabled {
         opacity: 0.5;
@@ -1590,14 +1474,6 @@
         background: var(--bg);
         color: var(--fg);
       }
-
-      /* ── Человек попросил систему поменьше двигать ────────────────────────
-         Не «выключить всё»: прозрачность и цвет помогают понять, что
-         произошло, и остаются. Уходит именно движение — сдвиги, масштаб и
-         бесконечные циклы, от которых укачивает. Смысл при этом не теряется:
-         красная точка и подпись «Запись идёт» говорят то же, что говорил
-         ореол, а полоска расшифровки остаётся видимой, просто перестаёт
-         ползать. */
       @media (prefers-reduced-motion: reduce) {
         .screen,
         .screen.off,
@@ -1821,9 +1697,7 @@
               </span>
               <button class="btn" id="check" data-i18n="settings.micTest">Test</button>
             </div>
-            <!-- Подтверждение стоит под самой выпадашкой, а не внизу экрана
-                 рядом с полями расшифровки: до того «Сохранено» от смены
-                 микрофона больше трёхсот пикселей, и человек его не увидит. -->
+
             <div class="saved" id="mic-saved" hidden role="status">✓ <span data-i18n="settings.saved">Saved</span></div>
             <!-- Не предупреждение и не ошибка: приложение делает ровно то, что
                  должно. Поэтому приглушённым цветом — это объяснение, а не тревога. -->
@@ -1861,77 +1735,6 @@
           </div>
 
           <div class="grp">
-            <h2 data-i18n="settings.transcription">Transcription</h2>
-            <!-- Где расшифровывать: тот же выпадающий контрол, что у языка и
-                 темы ниже, но без своего h2-подзаголовка — второй заголовок
-                 подряд после «Transcription» был бы про одно и то же, а
-                 варианты в самой выпадашке («На сервере»/«На этом компьютере»)
-                 объясняют себя сами. Пояснения — `local.hint` и
-                 `local.noDiarization` — не абзацами под рядом, а в своей
-                 подсказке по наведению/фокусу на значок-вопросик рядом с
-                 выпадашкой: тот же приём `.ic`, что у подписей уровней
-                 записи выше. -->
-            <div class="row mode" id="transcribe-mode-row">
-              <span class="field">
-                <select id="transcribe-mode">
-                  <option value="server" data-i18n="local.onServer">On a server</option>
-                  <option value="local" data-i18n="local.onDevice">On this computer</option>
-                </select>
-                <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-              </span>
-              <!-- Свой тултип, не системный `title`: содержимое (`local.onDevice`
-                   заголовком, `local.hint` и `local.noDiarization` текстом) ставит
-                   JS в `показать_подсказку` при наведении/фокусе — см. main.js.
-                   Сам пузырь лежит в конце <body> (`#tip-bubble`), не здесь:
-                   тело настроек прокручивается, и пузырь внутри строки обрезался
-                   бы прокручиваемой областью. -->
-              <span class="ic" id="local-about" tabindex="0" aria-describedby="tip-bubble" data-i18n-attr="aria-label:local.about" aria-label="About transcribing on this computer">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></svg>
-              </span>
-            </div>
-            <!-- Тип сервера: шлюз selfhost-ai-lab или whisper-server из
-                 whisper.cpp (`docs/2026-09-09-whisper-server-design.md`).
-                 Пока встроенный движок спрятан, это единственная видимая
-                 выпадашка раздела — строка режима выше скрыта из main.js
-                 (`ЛОКАЛЬНЫЙ_РЕЖИМ_ДОСТУПЕН`). Подсказка под ней меняется по
-                 типу, а не живёт в тултипе: у whisper-сервера есть свойство,
-                 которое надо видеть до первой расшифровки, — отмена не
-                 останавливает расчёт. -->
-            <div class="row mode" id="transcribe-server-row">
-              <span class="field">
-                <select id="transcribe-server">
-                  <option value="gateway" data-i18n="server.gateway">selfhost-ai-lab gateway</option>
-                  <option value="whisper_cpp" data-i18n="server.whisperCpp">whisper.cpp server</option>
-                </select>
-                <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-              </span>
-            </div>
-            <div class="hint" id="server-hint"></div>
-            <!-- Кнопка, а не <a href>: обычная ссылка в вебвью Tauri открылась
-                 бы внутри окна (см. .contacts). Ведёт на раздел README, ссылка
-                 по языку — в main.js. -->
-            <div class="row" id="server-howto-row" hidden>
-              <button class="sec" id="server-howto" data-i18n="server.howTo">How to run a whisper server</button>
-            </div>
-            <!-- Адрес и ключ шлюза видны только в серверном режиме — в
-                 локальном скрываются совсем (`hidden`), тем же приёмом, что и
-                 остальные блоки этого экрана (см. `local-model` ниже), а не
-                 гаснут `disabled`: в локальном режиме они не нужны вовсе, а не
-                 временно недоступны. -->
-            <div class="row" id="stt-url-row"><input type="text" id="stt-url" data-i18n-attr="placeholder:settings.serverUrl" placeholder="Server address" /></div>
-            <div class="row" id="stt-key-row"><input type="password" id="stt-key" data-i18n-attr="placeholder:settings.apiKey" placeholder="Access key" /></div>
-            <div class="saved" id="saved" hidden role="status">✓ <span data-i18n="settings.saved">Saved</span></div>
-
-            <!-- Состояние модели локальной расшифровки — виден только в режиме
-                 «на этом компьютере» (см. `отрисовать_модель` в main.js), тело
-                 собирает JS: у каждого из пяти состояний (нет/качается/готова/
-                 не хватает места/не скачалась) своя разметка. -->
-            <div id="local-model" hidden>
-              <div id="local-model-body"></div>
-            </div>
-          </div>
-
-          <div class="grp">
             <h2>Callabo</h2>
             <label for="callabo-token" data-i18n="callabo.token">Personal Access Token</label>
             <div class="row"><input type="password" id="callabo-token" autocomplete="off" spellcheck="false" placeholder="pat_…" /></div>
@@ -1952,28 +1755,6 @@
             <div class="saved" id="callabo-saved" hidden role="status">✓ <span data-i18n="settings.saved">Saved</span></div>
           </div>
 
-          <div class="grp">
-            <h2 data-i18n="retention.label">Delete audio</h2>
-            <div class="row">
-              <span class="field">
-                <select id="retention">
-                  <option value="never" data-i18n="retention.never">Never</option>
-                  <option value="7" data-i18n="retention.d7">Older than 7 days</option>
-                  <option value="30" data-i18n="retention.d30">Older than 30 days</option>
-                  <option value="90" data-i18n="retention.d90">Older than 90 days</option>
-                </select>
-                <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-              </span>
-            </div>
-            <div class="hint" data-i18n="retention.hint">
-              Transcripts stay. Only the audio goes, and that is what takes up the space. Recordings
-              without a transcript are left alone.
-            </div>
-          </div>
-
-          <!-- Язык и тема — последняя карточка, в одном ряду: обе решают «как
-               показать интерфейс», а не что-то про запись или хранение, и это
-               трогают реже всего остального на экране. -->
           <div class="grp">
             <div class="row pair">
               <div class="col">
@@ -2120,13 +1901,7 @@
     <!-- Подсказка объясняет ВЕСЬ выбор, а не выбранный вариант: заголовок
          про один режим над текстом, когда выбран другой, читается как
          описание текущего состояния и врёт. Поэтому оба режима подряд. -->
-    <div class="tip-bub" id="tip-bubble" role="tooltip">
-      <b class="tt-title" id="tt-t1"></b>
-      <span class="tt-text" id="tt-x1"></span>
-      <b class="tt-title tt-second" id="tt-t2"></b>
-      <span class="tt-text" id="tt-x2"></span>
-      <span class="tt-note" id="tt-note"></span>
-    </div>
+
 
     <dialog id="callabo-upload-dialog" class="callabo-dialog" aria-labelledby="callabo-upload-heading">
       <form id="callabo-upload-form">

@@ -1,32 +1,19 @@
-//! Удаление готовой записи: обе дорожки и папка расшифровки уезжают в
-//! системную корзину, а не стираются насовсем.
-//!
-//! Живёт в GUI, а не в ядре — тем же аргументом, что `rename.rs`: ядро
-//! отвечает за то, как запись СОЗДАЁТСЯ, а это управление уже созданным.
-//! В корзину, а не `fs::remove_file`, намеренно: в приложении лежат
-//! единственные копии рабочих разговоров, и безвозвратное удаление одним
-//! кликом недопустимо — см. `trash` в `Cargo.toml`.
+//! Move recording audio and metadata to the system Recycle Bin.
+//! Never permanently delete conversations or touch legacy transcript folders.
 
 use std::path::{Path, PathBuf};
 
-/// Что уезжает вместе с записью: обе дорожки, папка транскрипта и файл-
-/// спутник с длительностью (`<основа>.meta.json`, пишет `close_sinks` в ядре
-/// — см. `src/app.rs::SinkFactory::write_meta`).
-///
-/// `.meta.json` не входит в `rename::SUFFIXES`: переименование меняет только
-/// хвост имени, а внутри самого файла хвост не хранится — переезжать вместе
-/// с остальными ему незачем, обновлять нечего. Здесь же удаление — если не
-/// забрать его вместе с записью, он останется на диске сиротой без единой
-/// дорожки и без расшифровки рядом.
-const SUFFIXES: [&str; 6] = [".wav", ".mic.wav", ".system.wav", ".transcript", ".meta.json", ".callabo.json"];
+/// Audio formats and metadata managed as one recording.
+const SUFFIXES: [&str; 5] = [
+    ".wav",
+    ".mic.wav",
+    ".system.wav",
+    ".meta.json",
+    ".callabo.json",
+];
 
-/// Отправить запись в корзину целиком: обе дорожки и папку расшифровки, если
-/// она есть.
-///
-/// Не ошибка, если какого-то из трёх нет на диске — забирается всё, что
-/// нашлось (ровно так же ведёт себя `rename_recording`). Ошибка — только если
-/// не нашлось совсем ничего: удалять уже нечего, и молчаливый «успех» скрыл
-/// бы, что запись, которую попросили стереть, на этом месте не жила.
+/// Trash the existing recording members; missing members are fine.
+/// Return an error when no managed recording files exist.
 pub fn delete_recording(dir: &Path, base: &str) -> Result<(), String> {
     let existing: Vec<PathBuf> = SUFFIXES
         .iter()
@@ -77,6 +64,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn transcript_only_folder_is_not_a_deletable_recording() {
+        let dir = ScratchDir::new("legacy-only");
+        let base = "2026-10-07_10-00_meeting";
+        let legacy = dir.join(format!("{base}.transcript"));
+        std::fs::create_dir(&legacy).unwrap();
+        std::fs::write(legacy.join("summary.md"), b"old transcript").unwrap();
+        assert!(delete_recording(&dir, base).is_err());
+        assert_eq!(
+            std::fs::read(legacy.join("summary.md")).unwrap(),
+            b"old transcript"
+        );
+    }
+
     fn файл(dir: &Path, name: &str) {
         std::fs::write(dir.join(name), b"x").expect("создать файл");
     }
@@ -88,19 +89,22 @@ mod tests {
     /// проверяется отдельно, без обращения к самой корзине, — см. тесты ниже.
     #[test]
     #[ignore = "трогает системную корзину — гонять руками, не в CI"]
-    fn обе_дорожки_транскрипт_и_meta_json_уезжают_в_корзину() {
+    fn audio_and_metadata_move_to_trash_without_touching_legacy_transcripts() {
         let dir = ScratchDir::new("pair");
         файл(&dir, "2026-07-30_13-03_chrome.mic.wav");
         файл(&dir, "2026-07-30_13-03_chrome.system.wav");
         файл(&dir, "2026-07-30_13-03_chrome.meta.json");
         std::fs::create_dir(dir.join("2026-07-30_13-03_chrome.transcript")).unwrap();
-        файл(&dir.join("2026-07-30_13-03_chrome.transcript"), "выжимка.md");
+        файл(
+            &dir.join("2026-07-30_13-03_chrome.transcript"),
+            "выжимка.md",
+        );
 
         delete_recording(&dir, "2026-07-30_13-03_chrome").expect("удаление");
 
         assert!(!dir.join("2026-07-30_13-03_chrome.mic.wav").exists());
         assert!(!dir.join("2026-07-30_13-03_chrome.system.wav").exists());
-        assert!(!dir.join("2026-07-30_13-03_chrome.transcript").exists());
+        assert!(dir.join("2026-07-30_13-03_chrome.transcript").exists());
         assert!(
             !dir.join("2026-07-30_13-03_chrome.meta.json").exists(),
             "файл-спутник обязан уехать вместе со всей остальной записью, \

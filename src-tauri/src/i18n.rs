@@ -130,8 +130,8 @@ mod tests {
     #[test]
     fn подставляет_параметры() {
         assert_eq!(
-            t_params("transcribe.queued", "ru", &[("n", "3")]),
-            "В очереди №3"
+            t_params("callabo.history", "en", &[("workspaces", "A, B")]),
+            "Callabo: A, B"
         );
     }
 

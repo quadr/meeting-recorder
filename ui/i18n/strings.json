@@ -9,51 +9,186 @@
     "форматированием по языку, иначе пришлось бы держать список месяцев руками."
   ],
   "callabo": {
-    "token": { "ru": "Персональный токен доступа", "en": "Personal Access Token" },
-    "connect": { "ru": "Сохранить токен / подключиться", "en": "Save token / connect" },
-    "connecting": { "ru": "Подключение…", "en": "Connecting…" },
-    "tokenHelp": { "ru": "Создать токен", "en": "Create a token" },
-    "workspace": { "ru": "Рабочее пространство", "en": "Workspace" },
-    "choose": { "ru": "Выберите пространство", "en": "Select a workspace" },
-    "hint": { "ru": "PAT хранится в диспетчере учётных данных Windows. Параметры загрузки выбираются в диалоге записи.", "en": "The PAT is stored in Windows Credential Manager. Upload details are chosen in the recording’s upload dialog." },
-    "forget": { "ru": "Удалить сохранённый токен", "en": "Remove saved token" },
-    "tokenStored": { "ru": "Токен сохранён в Windows Credential Manager", "en": "Token stored in Windows Credential Manager" },
-    "tokenMissing": { "ru": "Токен ещё не сохранён", "en": "No saved token" },
-    "defaultWorkspace": { "ru": "Рабочее пространство по умолчанию", "en": "Default workspace" },
-    "title": { "ru": "Название", "en": "Title" },
-    "autoTitle": { "ru": "Оставьте пустым для автоматического названия", "en": "Leave empty for an automatic title" },
-    "scope": { "ru": "Доступ", "en": "Visibility" },
-    "scopeWorkspace": { "ru": "Рабочее пространство", "en": "Workspace" },
-    "scopeTeam": { "ru": "Выбранные команды", "en": "Selected teams" },
-    "scopePrivate": { "ru": "Приватный", "en": "Private" },
-    "teams": { "ru": "Команды", "en": "Teams" },
-    "multiHint": { "ru": "Ctrl-клик выбирает или снимает несколько значений. Последние успешные параметры сохраняются отдельно для каждого пространства.", "en": "Ctrl-click to select or clear multiple choices. Last successful selections are kept separately for each workspace." },
-    "language": { "ru": "Язык расшифровки", "en": "Transcription language" },
-    "language_default": { "ru": "По умолчанию Callabo", "en": "Callabo default" },
-    "language_detect": { "ru": "Автоопределение", "en": "Auto-detect" },
-    "language_multi": { "ru": "Несколько языков", "en": "Multilingual" },
-    "labels": { "ru": "Метки", "en": "Labels" },
-    "template": { "ru": "Шаблон", "en": "Template" },
-    "templateDefault": { "ru": "Настройки Callabo / команды", "en": "Callabo / team defaults" },
-    "templateHint": { "ru": "API загрузки не документирует выбор шаблона. Ниже — текущие настройки выбранных команд.", "en": "Template override is not documented by the upload API. Selected teams’ configured defaults are shown below." },
-    "access": { "ru": "Дополнительный доступ", "en": "Additional access" },
-    "accessTeams": { "ru": "Команды с доступом", "en": "Accessible teams" },
-    "accessUsers": { "ru": "ID пользователей Callabo с доступом", "en": "Accessible Callabo user IDs" },
-    "reset": { "ru": "Очистить команды / метки / доступ", "en": "Clear team / label / access selections" },
-    "uploadNotice": { "ru": "Звук будет отправлен в Callabo для обработки. Проверьте пространство и доступ перед загрузкой.", "en": "Audio will be sent to Callabo for processing. Check the workspace and visibility before uploading." },
-    "loadingOptions": { "ru": "Загрузка параметров пространства…", "en": "Loading workspace options…" },
-    "unavailable": { "ru": "Недоступно", "en": "Unavailable" },
-    "clearUnavailable": { "ru": "Сохранённые значения недоступны. Снимите их выбор или очистите параметры.", "en": "Saved selections are unavailable. Deselect them or clear the selections." },
-    "teamRequired": { "ru": "Для доступа команд выберите хотя бы одну команду.", "en": "Select at least one team for team visibility." },
-    "invalidIds": { "ru": "ID пользователей должны быть положительными целыми числами через запятую.", "en": "User IDs must be positive integers separated by commas." },
-    "upload": { "ru": "Загрузить в Callabo", "en": "Upload to Callabo" },
-    "error": { "ru": "Callabo", "en": "Callabo" },
-    "configure": { "ru": "Сохраните токен и подключитесь к Callabo в настройках.", "en": "Save your token and connect to Callabo in Settings." },
-    "creating": { "ru": "Callabo: создание записи…", "en": "Callabo: creating record…" },
-    "uploading": { "ru": "Callabo: загрузка аудио…", "en": "Callabo: uploading audio…" },
-    "completing": { "ru": "Callabo: завершение загрузки…", "en": "Callabo: completing upload…" },
-    "done": { "ru": "Загружено в Callabo · #{id}", "en": "Uploaded to Callabo · #{id}" },
-    "history": { "ru": "Callabo: {workspaces}", "en": "Callabo: {workspaces}" }
+    "token": {
+      "ru": "Персональный токен доступа",
+      "en": "Personal Access Token"
+    },
+    "connect": {
+      "ru": "Сохранить токен / подключиться",
+      "en": "Save token / connect"
+    },
+    "connecting": {
+      "ru": "Подключение…",
+      "en": "Connecting…"
+    },
+    "tokenHelp": {
+      "ru": "Создать токен",
+      "en": "Create a token"
+    },
+    "workspace": {
+      "ru": "Рабочее пространство",
+      "en": "Workspace"
+    },
+    "choose": {
+      "ru": "Выберите пространство",
+      "en": "Select a workspace"
+    },
+    "hint": {
+      "ru": "PAT хранится в диспетчере учётных данных Windows. Параметры загрузки выбираются в диалоге записи.",
+      "en": "The PAT is stored in Windows Credential Manager. Upload details are chosen in the recording’s upload dialog."
+    },
+    "forget": {
+      "ru": "Удалить сохранённый токен",
+      "en": "Remove saved token"
+    },
+    "tokenStored": {
+      "ru": "Токен сохранён в Windows Credential Manager",
+      "en": "Token stored in Windows Credential Manager"
+    },
+    "tokenMissing": {
+      "ru": "Токен ещё не сохранён",
+      "en": "No saved token"
+    },
+    "defaultWorkspace": {
+      "ru": "Рабочее пространство по умолчанию",
+      "en": "Default workspace"
+    },
+    "title": {
+      "ru": "Название",
+      "en": "Title"
+    },
+    "autoTitle": {
+      "ru": "Оставьте пустым для автоматического названия",
+      "en": "Leave empty for an automatic title"
+    },
+    "scope": {
+      "ru": "Доступ",
+      "en": "Visibility"
+    },
+    "scopeWorkspace": {
+      "ru": "Рабочее пространство",
+      "en": "Workspace"
+    },
+    "scopeTeam": {
+      "ru": "Выбранные команды",
+      "en": "Selected teams"
+    },
+    "scopePrivate": {
+      "ru": "Приватный",
+      "en": "Private"
+    },
+    "teams": {
+      "ru": "Команды",
+      "en": "Teams"
+    },
+    "multiHint": {
+      "ru": "Ctrl-клик выбирает или снимает несколько значений. Последние успешные параметры сохраняются отдельно для каждого пространства.",
+      "en": "Ctrl-click to select or clear multiple choices. Last successful selections are kept separately for each workspace."
+    },
+    "language": {
+      "ru": "Язык расшифровки",
+      "en": "Transcription language"
+    },
+    "language_default": {
+      "ru": "По умолчанию Callabo",
+      "en": "Callabo default"
+    },
+    "language_detect": {
+      "ru": "Автоопределение",
+      "en": "Auto-detect"
+    },
+    "language_multi": {
+      "ru": "Несколько языков",
+      "en": "Multilingual"
+    },
+    "labels": {
+      "ru": "Метки",
+      "en": "Labels"
+    },
+    "template": {
+      "ru": "Шаблон",
+      "en": "Template"
+    },
+    "templateDefault": {
+      "ru": "Настройки Callabo / команды",
+      "en": "Callabo / team defaults"
+    },
+    "templateHint": {
+      "ru": "API загрузки не документирует выбор шаблона. Ниже — текущие настройки выбранных команд.",
+      "en": "Template override is not documented by the upload API. Selected teams’ configured defaults are shown below."
+    },
+    "access": {
+      "ru": "Дополнительный доступ",
+      "en": "Additional access"
+    },
+    "accessTeams": {
+      "ru": "Команды с доступом",
+      "en": "Accessible teams"
+    },
+    "accessUsers": {
+      "ru": "ID пользователей Callabo с доступом",
+      "en": "Accessible Callabo user IDs"
+    },
+    "reset": {
+      "ru": "Очистить команды / метки / доступ",
+      "en": "Clear team / label / access selections"
+    },
+    "uploadNotice": {
+      "ru": "Звук будет отправлен в Callabo для обработки. Проверьте пространство и доступ перед загрузкой.",
+      "en": "Audio will be sent to Callabo for processing. Check the workspace and visibility before uploading."
+    },
+    "loadingOptions": {
+      "ru": "Загрузка параметров пространства…",
+      "en": "Loading workspace options…"
+    },
+    "unavailable": {
+      "ru": "Недоступно",
+      "en": "Unavailable"
+    },
+    "clearUnavailable": {
+      "ru": "Сохранённые значения недоступны. Снимите их выбор или очистите параметры.",
+      "en": "Saved selections are unavailable. Deselect them or clear the selections."
+    },
+    "teamRequired": {
+      "ru": "Для доступа команд выберите хотя бы одну команду.",
+      "en": "Select at least one team for team visibility."
+    },
+    "invalidIds": {
+      "ru": "ID пользователей должны быть положительными целыми числами через запятую.",
+      "en": "User IDs must be positive integers separated by commas."
+    },
+    "upload": {
+      "ru": "Загрузить в Callabo",
+      "en": "Upload to Callabo"
+    },
+    "error": {
+      "ru": "Callabo",
+      "en": "Callabo"
+    },
+    "configure": {
+      "ru": "Сохраните токен и подключитесь к Callabo в настройках.",
+      "en": "Save your token and connect to Callabo in Settings."
+    },
+    "creating": {
+      "ru": "Callabo: создание записи…",
+      "en": "Callabo: creating record…"
+    },
+    "uploading": {
+      "ru": "Callabo: загрузка аудио…",
+      "en": "Callabo: uploading audio…"
+    },
+    "completing": {
+      "ru": "Callabo: завершение загрузки…",
+      "en": "Callabo: completing upload…"
+    },
+    "done": {
+      "ru": "Загружено в Callabo · #{id}",
+      "en": "Uploaded to Callabo · #{id}"
+    },
+    "history": {
+      "ru": "Callabo: {workspaces}",
+      "en": "Callabo: {workspaces}"
+    }
   },
   "app": {
     "name": {
@@ -208,55 +343,9 @@
       "ru": "Запись, которая идёт сейчас, пишется прежним микрофоном. Новый включится со следующей.",
       "en": "The recording in progress keeps the old microphone. The new one starts with the next recording."
     },
-    "transcription": {
-      "ru": "Расшифровка встреч",
-      "en": "Transcription"
-    },
-    "serverUrl": {
-      "ru": "Адрес сервера",
-      "en": "Server address"
-    },
-    "apiKey": {
-      "ru": "Ключ доступа",
-      "en": "Access key"
-    },
     "saved": {
       "ru": "Сохранено",
       "en": "Saved"
-    }
-  },
-  "transcribe": {
-    "uploading": {
-      "ru": "Отправляю…",
-      "en": "Uploading…"
-    },
-    "polling": {
-      "ru": "Расшифровываю…",
-      "en": "Transcribing…"
-    },
-    "merging": {
-      "ru": "Собираю текст…",
-      "en": "Merging…"
-    },
-    "done": {
-      "ru": "Готово",
-      "en": "Done"
-    },
-    "queued": {
-      "ru": "В очереди №{n}",
-      "en": "In line, #{n}"
-    },
-    "progress": {
-      "ru": "{stage} дорожка {n} из {total}, {elapsed}",
-      "en": "{stage} track {n} of {total}, {elapsed}"
-    },
-    "ready": {
-      "ru": "расшифровка готова",
-      "en": "transcript ready"
-    },
-    "running": {
-      "ru": "Расшифровка уже идёт",
-      "en": "Transcription is already running"
     }
   },
   "duration": {
@@ -302,25 +391,9 @@
       "ru": "Действия",
       "en": "Actions"
     },
-    "openTranscript": {
-      "ru": "Открыть расшифровку",
-      "en": "Open transcript"
-    },
     "rename": {
       "ru": "Переименовать",
       "en": "Rename"
-    },
-    "transcribe": {
-      "ru": "Расшифровать встречу",
-      "en": "Transcribe this meeting"
-    },
-    "cancel": {
-      "ru": "Отменить расшифровку",
-      "en": "Cancel transcription"
-    },
-    "again": {
-      "ru": "Расшифровать заново",
-      "en": "Transcribe again"
     },
     "showFiles": {
       "ru": "Показать файлы",
@@ -347,120 +420,6 @@
     "cancel": {
       "ru": "Отмена",
       "en": "Cancel"
-    }
-  },
-  "server": {
-    "gateway": {
-      "ru": "Шлюз selfhost-ai-lab",
-      "en": "selfhost-ai-lab gateway"
-    },
-    "whisperCpp": {
-      "ru": "whisper.cpp server",
-      "en": "whisper.cpp server"
-    },
-    "gatewayHint": {
-      "ru": "Дорожки уходят на указанный адрес по вашему ключу. Различает собеседников между собой.",
-      "en": "The tracks go to the address you set, with your key. Tells the other speakers apart."
-    },
-    "whisperCppHint": {
-      "ru": "Сервер на этом компьютере или в локальной сети, без ключа. Собеседников между собой не различает. Отмена в приложении прерывает расчёт на сервере не сразу: следующая дорожка может подождать.",
-      "en": "A server on this machine or on the local network, no key. Won't tell the other speakers apart. Cancelling in the app stops the server's work with a delay: the next track may have to wait."
-    },
-    "whisperCppUrl": {
-      "ru": "http://127.0.0.1:8178",
-      "en": "http://127.0.0.1:8178"
-    },
-    "howTo": {
-      "ru": "Как поднять whisper-сервер",
-      "en": "How to run a whisper server"
-    }
-  },
-  "local": {
-    "about": {
-      "ru": "Про расшифровку на этом компьютере",
-      "en": "About transcribing on this computer"
-    },
-    "onServer": {
-      "ru": "На сервере",
-      "en": "On a server"
-    },
-    "onDevice": {
-      "ru": "На этом компьютере",
-      "en": "On this computer"
-    },
-    "hint": {
-      "ru": "Ничего не уходит в интернет. Считается дольше и заметно греет ноутбук.",
-      "en": "Nothing leaves the machine. Slower, and it warms the laptop up."
-    },
-    "serverHint": {
-      "ru": "Дорожки уходят на указанный адрес по вашему ключу. Считается быстрее и различает собеседников между собой.",
-      "en": "The tracks go to the address you set, with your key. Faster, and it tells the other speakers apart."
-    },
-    "noDiarization": {
-      "ru": "Собеседников между собой не различает. Где вы, а где они — слышно, это разные дорожки. Кто из них кто — нет.",
-      "en": "It won't tell the other speakers apart. You and them stay separate, because those are different tracks. Which of them is which, it won't know."
-    },
-    "modelMissing": {
-      "ru": "Модель не скачана",
-      "en": "Model not downloaded"
-    },
-    "modelDownload": {
-      "ru": "Скачать модель, {size}",
-      "en": "Download the model, {size}"
-    },
-    "modelLoading": {
-      "ru": "Скачиваю… {done} из {total}",
-      "en": "Downloading… {done} of {total}"
-    },
-    "modelReady": {
-      "ru": "Модель на месте, {size}",
-      "en": "Model ready, {size}"
-    },
-    "modelRemove": {
-      "ru": "Удалить модель",
-      "en": "Remove the model"
-    },
-    "noSpace": {
-      "ru": "Не хватает места: нужно {need}, свободно {free}.",
-      "en": "Not enough space: {need} needed, {free} free."
-    },
-    "downloadFailed": {
-      "ru": "Модель не скачалась. Проверьте соединение и попробуйте ещё раз.",
-      "en": "The model didn't download. Check the connection and try again."
-    },
-    "notWired": {
-      "ru": "Локальный движок ещё не подключён: расшифровка на этом компьютере пока не работает. Всё остальное готово, движок вставит разработчик.",
-      "en": "The local engine isn't wired up yet, so transcribing on this computer doesn't work. Everything around it is ready; a developer drops the engine in."
-    }
-  },
-  "retention": {
-    "label": {
-      "ru": "Удалять аудио",
-      "en": "Delete audio"
-    },
-    "never": {
-      "ru": "Никогда",
-      "en": "Never"
-    },
-    "d7": {
-      "ru": "Старше 7 дней",
-      "en": "Older than 7 days"
-    },
-    "d30": {
-      "ru": "Старше 30 дней",
-      "en": "Older than 30 days"
-    },
-    "d90": {
-      "ru": "Старше 90 дней",
-      "en": "Older than 90 days"
-    },
-    "hint": {
-      "ru": "Расшифровки остаются, удаляется только звук — место занимает он. Записи без расшифровки чистка не трогает.",
-      "en": "Transcripts stay. Only the audio goes, and that is what takes up the space. Recordings without a transcript are left alone."
-    },
-    "cleared": {
-      "ru": "аудио удалено",
-      "en": "audio removed"
     }
   },
   "about": {
@@ -565,20 +524,8 @@
       "en": "Your voice is barely there"
     },
     "quietText": {
-      "ru": "Микрофон записал ваш голос слишком тихо, почти вровень с шумом — расшифровка может пропустить ваши реплики. Проверьте его в настройках перед следующей встречей.",
-      "en": "Your microphone recorded your voice too quietly, barely above the noise, so the transcript may miss what you said. Check it in settings before the next meeting."
-    },
-    "transcriptTitle": {
-      "ru": "Расшифровка не получилась",
-      "en": "Transcription didn't work"
-    },
-    "transcriptText": {
-      "ru": "Запись цела — можно попробовать ещё раз или проверить адрес сервера в настройках.",
-      "en": "The recording is fine. You can try again, or check the server address in settings."
-    },
-    "retry": {
-      "ru": "Попробовать снова",
-      "en": "Try again"
+      "ru": "Микрофон записал ваш голос слишком тихо, почти вровень с шумом. Проверьте его в настройках перед следующей встречей.",
+      "en": "Your microphone recorded your voice too quietly, barely above the noise. Check it in settings before the next meeting."
     },
     "renameTitle": {
       "ru": "Не удалось переименовать",
@@ -632,10 +579,6 @@
       "ru": "Не вижу микрофонов. Откройте настройки заново.",
       "en": "No microphones found. Open settings again."
     },
-    "saveSettings": {
-      "ru": "Адрес и ключ не сохранились. Проверьте их и выйдите из поля ещё раз.",
-      "en": "The address and key weren't saved. Check them and leave the field again."
-    },
     "privacy": {
       "ru": "Настройки системы не открылись. Откройте их сами: Конфиденциальность и безопасность → Запись экрана и звука.",
       "en": "System Settings didn't open. Open them yourself: Privacy & Security → Screen & System Audio Recording."
@@ -648,17 +591,9 @@
       "ru": "Не удалось узнать, чем занято приложение. Закройте окно и откройте его снова из трея.",
       "en": "Couldn't tell what the app is doing. Close the window and open it again from the tray icon."
     },
-    "openTranscript": {
-      "ru": "Расшифровка не открылась. Найдите её через «Показать файлы».",
-      "en": "The transcript didn't open. Find it through Show files."
-    },
     "openFolder": {
       "ru": "Папка с записями не открылась. Попробуйте ещё раз.",
       "en": "The recordings folder didn't open. Try again."
-    },
-    "cancel": {
-      "ru": "Отмена не сработала — расшифровка идёт дальше.",
-      "en": "Cancelling didn't work. The transcription is still running."
     },
     "rename": {
       "ru": "Имя осталось прежним — попробуйте ещё раз.",

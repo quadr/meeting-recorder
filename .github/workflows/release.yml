@@ -22,6 +22,10 @@ jobs:
         include:
           - platform: 'windows-latest'
             args: ''
+          # Native Windows ARM64; portable only, no additional installer.
+          - platform: 'windows-11-arm'
+            target: 'aarch64-pc-windows-msvc'
+            args: '--target aarch64-pc-windows-msvc --no-bundle'
           # Apple Silicon (M1 и новее) — основной таргет.
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
@@ -36,7 +40,7 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target || (matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '') }}
 
       - name: install frontend dependencies
         run: npm install
@@ -48,7 +52,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'MeetRec ${{ github.ref_name }}'
           releaseBody: |
-            Сборки Windows (NSIS-установщик + portable .exe без установки) и macOS
+            Сборки Windows (x64 NSIS-установщик + x64/ARM64 portable .exe без установки) и macOS
             (.dmg, Apple Silicon и Intel отдельно).
 
             macOS-сборка без подписи Apple Developer ID (`signingIdentity: "-"`,
@@ -58,6 +62,10 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+          # ARM64's --no-bundle output is uploaded directly by tauri-action.
+          # Keep the existing x64 upload step and macOS asset names unchanged.
+          uploadPlainBinary: ${{ matrix.platform == 'windows-11-arm' }}
+          releaseAssetNamePattern: ${{ matrix.platform == 'windows-11-arm' && format('MeetRec_{0}_arm64-portable[ext]', github.ref_name) || '' }}
 
       # У Tauri нет отдельного "portable"-таргета бандлера (только nsis/msi —
       # оба ставят инсталлятором), но собранный `cargo build --release` бинарь

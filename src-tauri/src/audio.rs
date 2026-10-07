@@ -514,7 +514,7 @@ fn sync(handle: &AppHandle, app: &App, status: &Status) {
 
     // Без `emit`: никто не подписан на «какая запись сейчас пишется» —
     // список читает её через снимок в момент своего собственного вызова
-    // (`list_recordings`, `delete_recording`, автоочистка), а не заранее.
+    // (`list_recordings`, `delete_recording`), а не заранее.
     // Событие здесь дублировало бы то, что и так приходит на каждый тик
     // через уже существующее событие `state`.
     status.set_current_recording(app.current_recording());

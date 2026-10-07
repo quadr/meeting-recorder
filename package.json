@@ -6,6 +6,7 @@
   "scripts": {
     "tauri": "tauri",
     "test:callabo-ui": "node --test scripts/test-callabo-ui.cjs",
+    "test:recorder-ui": "node --test scripts/test-recorder-ui.cjs",
     "check-tap-lazy-bind": "scripts/check-tap-lazy-bind.sh"
   },
   "devDependencies": {

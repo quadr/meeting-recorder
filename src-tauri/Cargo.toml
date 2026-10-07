@@ -30,22 +30,12 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 hound = "3.5"
-# `stream` — ради `multipart::Part::file`, который отправляет дорожку через
-# уже открытый файловый дескриптор потоком, а не читает её в память целиком:
-# двухчасовая запись это ~230 МБ на дорожку (16 кГц, моно, i16). Без этой
-# фичи `Part::file` и `impl From<File> for Body` у reqwest не существуют.
-reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+# Stream the original WAV to Callabo from an open file handle.
+reqwest = { version = "0.12", features = ["json", "stream"] }
 uuid = { version = "1", features = ["v4"] }
-# `io-util` — ради `AsyncWriteExt` в `local.rs`: скачивание модели пишет
-# приходящие по сети чанки в файл, не блокируя рантайм синхронным
-# `std::fs::write` на каждый чанк.
-# `net` — только ради тестов `whisper_cpp.rs`: стаб-сервер на `TcpListener`
-# отвечает заранее заготовленным телом, чтобы проверить сетевой путь без
-# настоящего whisper-server.
-# `sync` — тоже только тесты: `oneshot` передаёт голову запроса из стаба наружу.
-tokio = { version = "1", features = ["time", "fs", "macros", "io-util", "net", "sync"] }
+# Async Callabo file transfer and loopback protocol tests.
+tokio = { version = "1", features = ["time", "fs", "macros", "io-util", "net"] }
 thiserror = "2"
-sysinfo = "0.32"
 sys-locale = "0.3.2"
 # `coinit_apartmentthreaded` — не украшение, а обязательное условие сборки под
 # Windows: без одной из двух coinit-фич в `trash/src/windows.rs` срабатывает
@@ -54,9 +44,7 @@ sys-locale = "0.3.2"
 # заодно и COM. Модель — та же, что крейт выбирает по умолчанию, и та, которую
 # ждут shell-API Windows. Сторожит тест `trash_объявлен_с_моделью_com_для_windows`.
 trash = { version = "5.2.6", default-features = false, features = ["coinit_apartmentthreaded"] }
-# Разбор даты из имени записи в `retention.rs` — та же версия, что тянет
-# ядро (`../Cargo.toml`), чтобы `DateTime<Local>` здесь был тем же типом, а
-# не двумя одноимёнными по недоразумению.
+# Recording timestamps in the Callabo payload.
 chrono = "0.4"
 
 [target.'cfg(windows)'.dependencies]

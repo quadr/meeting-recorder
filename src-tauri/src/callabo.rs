@@ -1,9 +1,7 @@
 //! Manual uploads using the protocol of the official Callabo CLI.
 //! PATs are kept in the Windows credential vault, never config/journal/logs.
 //! See https://github.com/rtzr/callabo-cli (v0.1.13); public v2 has no upload API.
-use crate::{
-    config::Config, recording_busy, recording_dir, recordings_root, Status, TranscribeQueue,
-};
+use crate::{config::Config, recording_busy, recording_dir, recordings_root, Status};
 use reqwest::{Client, Response, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -42,7 +40,8 @@ impl Uploads {
         action()
     }
 
-    pub fn busy(&self, folder: Option<&str>, base: &str) -> bool {
+    #[cfg(test)]
+    fn busy(&self, folder: Option<&str>, base: &str) -> bool {
         self.0
             .lock()
             .map(|s| s.contains(&(folder.map(str::to_owned), base.to_owned())))
@@ -802,17 +801,10 @@ pub async fn callabo_upload(
     let token = saved_token()?;
     let options = options.normalized()?;
     let _guard = state.start((folder.clone(), base.clone()))?;
-    if recording_busy(
-        &app.state::<Status>(),
-        &app.state::<TranscribeQueue>(),
-        folder.as_deref(),
-        &base,
-    ) {
-        return Err(
-            "Wait until recording and transcription finish before uploading to Callabo.".into(),
-        );
+    if recording_busy(&app.state::<Status>(), folder.as_deref(), &base) {
+        return Err("Wait until recording finishes before uploading to Callabo.".into());
     }
-    let dir = recording_dir(&recordings_root(), folder.as_deref(), &base, false)?;
+    let dir = recording_dir(&recordings_root(), folder.as_deref(), &base)?;
     let path: PathBuf = dir.join(format!("{base}.wav"));
     let journal = dir.join(format!("{base}.callabo.json"));
     let mut receipt = upload(

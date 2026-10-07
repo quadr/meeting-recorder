@@ -33,7 +33,7 @@ MeetRec notices when a call starts, offers to record it, and writes two separate
 
 ## What makes it different
 
-Most meeting recorders put a bot into the call and keep the files on their servers. MeetRec takes the audio from your own machine and writes it to your own disk. Nobody in the call sees another participant, and no recording leaves the computer unless you ask for a transcript.
+Most meeting recorders put a bot into the call and keep the files on their servers. MeetRec takes the audio from your own machine and writes it to your own disk. Nobody in the call sees another participant, and no recording leaves the computer unless you explicitly upload it to Callabo.
 
 ## Install
 
@@ -48,6 +48,7 @@ xattr -cr /Applications/MeetRec.app
 ```
 
 **Windows** — `MeetRec_x.y.z_x64-setup.exe` to install, or `MeetRec_vx.y.z_x64-portable.exe` to run without installing.
+For Windows ARM64, use `MeetRec_vx.y.z_arm64-portable.exe` (no installer).
 
 The app notices new releases on its own: once a day it asks GitHub and, if a newer version is out, shows a "Download / Later" banner in the window. Download opens the release page in your browser; installing is manual, same as the first time. Nothing but the version number is exchanged.
 
@@ -69,7 +70,6 @@ On Windows no separate permission is required.
 ```
 ~/Recordings/2026-09/
   2026-09-02_14-30_zoom.wav           channel 1: microphone; channel 2: system audio
-  2026-09-02_14-30_zoom.transcript/   text, if you asked for it
 ```
 
 On Windows the same tree lives in `%USERPROFILE%\Recordings\`.
@@ -79,13 +79,9 @@ about 230 MB per hour. The sources remain separate channels, not a mixed track.
 If system capture is unavailable, the WAV contains only the microphone (256 kbps).
 Older separate `.mic.wav` and `.system.wav` recordings remain supported.
 
-## Transcription and privacy
+## Callabo and privacy
 
-Recording is entirely local. Transcription is not, and this is worth being precise about.
-
-MeetRec does not ship with a transcription server. You put the address and the access key of your own gateway into settings, and the audio files are uploaded there, one track at a time, over HTTPS. Without a configured gateway or an explicitly requested Callabo upload, recordings stay local.
-
-If you don't have a gateway, [selfhost-ai-lab](https://github.com/mmaximov97/selfhost-ai-lab) is one you can run on your own hardware. It speaks the API MeetRec expects — `POST /v1/audio/transcriptions/async` to submit a track, `GET /v1/jobs/:id` to poll it — and setting it up is documented there. Any server exposing the same two endpoints will do.
+Recording is entirely local. Audio leaves this computer only when you explicitly choose an upload to Callabo. Built-in transcription, gateway/Whisper settings, model downloads, transcription queues, and transcript-dependent audio cleanup have been removed. Existing transcript folders and downloaded model files are left untouched; recordings containing only legacy transcripts no longer appear in the recording list.
 
 ### Upload to Callabo
 
@@ -100,44 +96,6 @@ A non-secret `<recording>.callabo.json` history stores every remote record ID, w
 Launching MeetRec again restores and focuses the existing window (even from the tray or minimized), without restarting recording or registering another hotkey. When switching from a build without single-instance support, quit that older build through its tray menu once before starting the new executable.
 
 This integration follows the v1 upload protocol used by the [official Callabo CLI](https://github.com/rtzr/callabo-cli) v0.1.13. The [public v2 API](https://callabo.ai/en/developers) does not currently document uploading; workspace API/PAT permissions are required. Mock API tests cover the protocol; live account compatibility still needs verification.
-
-### Your own whisper server on this machine
-
-The second option is `whisper-server` from [whisper.cpp](https://github.com/ggml-org/whisper.cpp), running on the same machine. Audio never leaves the computer and no key is needed. What it can't do: tell the other speakers apart — the transcript will say "Owner" and "Others", without numbers.
-
-Two models, put them in one folder:
-
-- speech: [`ggml-large-v3-turbo-q5_0.bin`](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin), 574 MB — close to large-v3 in quality, several times faster;
-- voice activity detector: [`ggml-silero-v5.1.2.bin`](https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin), 0.9 MB — without it whisper makes up text in the pauses, and a microphone track of a meeting is mostly pauses.
-
-**Windows.** Download `whisper-bin-x64.zip` from the [whisper.cpp releases](https://github.com/ggml-org/whisper.cpp/releases/latest) and unpack it: the archive unpacks into a `Release\` folder; put both models there and run from inside it:
-
-```
-.\whisper-server.exe -m ggml-large-v3-turbo-q5_0.bin -l auto --vad -vm ggml-silero-v5.1.2.bin --port 8178 -t 8
-```
-
-`-t` is the thread count; match it to your cores. Without a GPU an hour-long meeting takes about an hour.
-
-**macOS.** The `brew install whisper-cpp` package does not include the server, so build from source — about three minutes:
-
-```sh
-brew install cmake git
-git clone https://github.com/ggml-org/whisper.cpp
-cd whisper.cpp
-cmake -B build && cmake --build build -j
-```
-
-Put both models into the `whisper.cpp` folder and run from there:
-
-```sh
-./build/bin/whisper-server -m ggml-large-v3-turbo-q5_0.bin -l auto --vad -vm ggml-silero-v5.1.2.bin --port 8178
-```
-
-Metal is picked up automatically: on Apple Silicon an hour-long meeting takes a few minutes.
-
-**In the app.** Settings → Transcription → server type "whisper.cpp server", address `http://127.0.0.1:8178`. No key.
-
-One caveat: "Cancel transcription" in the app drops the connection immediately, but the server only notices it between compute steps and aborts with a delay — the next transcription may have to wait tens of seconds behind it.
 
 ## Shortcuts
 
